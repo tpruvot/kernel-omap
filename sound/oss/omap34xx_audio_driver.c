@@ -1118,14 +1118,12 @@ static void dump_platform_config(void)
 			  "I2S BP: %s\n"
 			  "19Mhz BP: %s\n"
 			  "Mic3: %s\n"
-			  "MB_BIAS_R: %d\n"
 			  "Stereo Loudspeaker: %s\n",
 			  getstring(cpcap_audio_has_analog_downlink()),
 			  getstring(cpcap_audio_has_independent_bt()),
 			  getstring(cpcap_audio_has_i2s_bp()),
 			  getstring(cpcap_audio_has_19mhz_bp()),
 			  getstring(cpcap_audio_has_mic3()),
-			  cpcap_audio_mb_bias_set(),
 			  getstring(cpcap_audio_has_stereo_loudspeaker()));
 
 }

@@ -254,20 +254,24 @@ static void omap_hsmmc_prepare_data(struct raw_omap_hsmmc_host *host,
 static int get_mmc_status(struct raw_omap_hsmmc_host *host,
 			unsigned int *status);
 
-static struct platform_device dummy_pdev = {
-	.dev = {
-		.bus = &platform_bus_type,
-	}
-};
-
+#define DEV_KOBJ_NAME_LEN 20
 static void raw_omap_hsmmc_enable_clk(struct raw_omap_hsmmc_host *host)
 {
 	u32 reg;
+	char dev_kobj_name[DEV_KOBJ_NAME_LEN];
 	struct clk *iclk, *fclk;
+	struct platform_device dummy_pdev = {
+		.dev = {
+			.bus = &platform_bus_type,
+		}
+	};
 	struct device *dev = &dummy_pdev.dev;
 
 	dummy_pdev.id = host->id;
-	dev_set_name(&dummy_pdev.dev, "mmci-omap-hs.%d", host->id);
+	snprintf(dev_kobj_name, DEV_KOBJ_NAME_LEN - 1, "mmci-omap-hs.%d",
+		host->id);
+	dev_kobj_name[DEV_KOBJ_NAME_LEN - 1] = '\0';
+	dummy_pdev.dev.kobj.name = dev_kobj_name;
 
 	reg = omap_readl(CM_AUTOIDLE1_CORE);
 	switch (host->id) {
@@ -1655,7 +1659,6 @@ static int raw_mmc_probe_emmc(struct raw_hd_struct *rhd)
 
 	kpanic_host = NULL;	/* detect eMMC, then detect SD case */
 	DPRINTK(KERN_ERR "KPANIC-MMC: probe eMMC chip\n");
-	local_irq_disable();
 	host = &emmc_host;
 	memset(host, 0, sizeof(emmc_host));
 
@@ -1669,6 +1672,9 @@ static int raw_mmc_probe_emmc(struct raw_hd_struct *rhd)
 
 	/* enable iclk, fclk for mmchs1 */
 	raw_omap_hsmmc_enable_clk(host);
+
+	/* no more might_sleep after this point */
+	local_irq_disable();
 
 	/* assume gpio setting will not changed by someone else */
 

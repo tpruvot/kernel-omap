@@ -261,6 +261,9 @@ static int mmc_read_ext_csd(struct mmc_card *card)
 					1 << ext_csd[EXT_CSD_S_A_TIMEOUT];
 	}
 
+	if (card->ext_csd.rev >= 5)
+		card->ext_csd.rel_wr_sec_c = ext_csd[EXT_CSD_REL_WR_SEC_C];
+
 out:
 	kfree(ext_csd);
 

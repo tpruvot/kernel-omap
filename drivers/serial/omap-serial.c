@@ -49,8 +49,6 @@
 #endif
 #include <asm/mach/serial_omap.h>
 
-extern int mapphone_umts_model;
-
 unsigned long isr8250_activity;
 static int gps_port;
 
@@ -155,7 +153,7 @@ static void serial_omap_rx_timeout(unsigned long uart_no);
 static void serial_omap_start_rxdma(struct uart_omap_port *up);
 static void serial_omap_set_autorts(struct uart_omap_port *p, int set);
 
-#define DBG_RX_DATA 1
+#define DBG_RX_DATA 0
 
 int console_detect(char *str)
 {
@@ -334,22 +332,17 @@ static inline void receive_chars(struct uart_omap_port *up, int *status)
 {
 	unsigned int ch, flag;
 	int max_count = 256;
-	int recv_count = 0;
 
 #if DBG_RX_DATA
-	if ((!mapphone_umts_model) && (up->port.mapbase == 0x4806a000))
-		printk("[RX]: ");
+	printk("[RX]: ");
 #endif
 	do {
 		ch = serial_in(up, UART_RX);
 #if DBG_RX_DATA
-		if ((!mapphone_umts_model) && (recv_count++ < 10) &&
-			(up->port.mapbase == 0x4806a000)) {
-			if ((ch >= 32) && (ch < 127))
-				printk("%c", ch);
-			else
-				printk("{0x%.2x}", ch);
-		}
+		if ((ch >= 32) && (ch < 127))
+			printk("%c", ch);
+		else
+			printk("{0x%.2x}", ch);
 #endif
 		flag = TTY_NORMAL;
 		up->port.icount.rx++;
@@ -409,8 +402,7 @@ ignore_char:
 	queue_work(omap_serial_workqueue, &up->tty_work);
 
 #if DBG_RX_DATA
-	if ((!mapphone_umts_model) && (up->port.mapbase == 0x4806a000))
-		printk("\n");
+	printk("\n");
 #endif
 }
 
@@ -427,58 +419,22 @@ static void transmit_chars(struct uart_omap_port *up)
 {
 	struct circ_buf *xmit = &up->port.state->xmit;
 	int count;
-	int circ_empty = 0, tx_stopped = 0, send_count = 0;
-
-	if ((!mapphone_umts_model) && (up->port.mapbase == 0x4806a000))
-		printk("[TX]: ");
 
 	if (up->port.x_char) {
 		serial_out(up, UART_TX, up->port.x_char);
-
-		if ((!mapphone_umts_model) &&
-			(up->port.mapbase == 0x4806a000)) {
-			if ((up->port.x_char >= 32) &&
-				(up->port.x_char < 127))
-				printk("%c", up->port.x_char);
-			else
-				printk("{0x%.2x}", up->port.x_char);
-			printk(" [x_char]\n");
-		}
-
 		up->port.icount.tx++;
 		up->port.x_char = 0;
 		return;
 	}
-
-	circ_empty = uart_circ_empty(xmit);
-	tx_stopped = uart_tx_stopped(&up->port);
-	/* if (uart_circ_empty(xmit) || uart_tx_stopped(&up->port)) { */
-	if (circ_empty || tx_stopped) {
+	if (uart_circ_empty(xmit) || uart_tx_stopped(&up->port)) {
 		serial_omap_stop_tx(&up->port);
-
-		if ((!mapphone_umts_model) &&
-			(up->port.mapbase == 0x4806a000)) {
-			printk("circ_empty = %d, tx_stopped = %d\n",
-					circ_empty, tx_stopped);
-		}
-
 		return;
 	}
 
-	count = up->port.fifosize / 4;
+	count = up->port.fifosize;
 
 	do {
 		serial_out(up, UART_TX, xmit->buf[xmit->tail]);
-
-		if ((!mapphone_umts_model) && (send_count++ < 10)
-			&& (up->port.mapbase == 0x4806a000)) {
-			if ((xmit->buf[xmit->tail] >= 32) &&
-				(xmit->buf[xmit->tail] < 127))
-				printk("%c", xmit->buf[xmit->tail]);
-			else
-				printk("{0x%.2x}", xmit->buf[xmit->tail]);
-		}
-
 		xmit->tail = (xmit->tail + 1) & (UART_XMIT_SIZE - 1);
 		up->port.icount.tx++;
 		if (uart_circ_empty(xmit))
@@ -490,9 +446,6 @@ static void transmit_chars(struct uart_omap_port *up)
 
 	if (uart_circ_empty(xmit))
 		serial_omap_stop_tx(&up->port);
-
-	if ((!mapphone_umts_model) && (up->port.mapbase == 0x4806a000))
-		printk("\n");
 }
 
 static void serial_omap_start_tx(struct uart_port *port)
@@ -549,8 +502,6 @@ static void serial_omap_start_tx(struct uart_port *port)
 	} else if (!(up->ier & UART_IER_THRI)) {
 		up->ier |= UART_IER_THRI;
 		serial_out(up, UART_IER, up->ier);
-		if ((!mapphone_umts_model) && (up->port.mapbase == 0x4806a000))
-			printk("uart1 start_tx\n");
 	}
 
 	if (up->restore_autorts) {

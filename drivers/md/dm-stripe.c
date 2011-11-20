@@ -248,10 +248,13 @@ static int stripe_status(struct dm_target *ti,
 			 status_type_t type, char *result, unsigned int maxlen)
 {
 	struct stripe_c *sc = (struct stripe_c *) ti->private;
-	char buffer[sc->stripes + 1];
+	char *buffer;
 	unsigned int sz = 0;
 	unsigned int i;
 
+	buffer = kmalloc(sc->stripes + 1, GFP_KERNEL);
+	if (NULL == buffer)
+		return 0;
 	switch (type) {
 	case STATUSTYPE_INFO:
 		DMEMIT("%d ", sc->stripes);
@@ -272,6 +275,7 @@ static int stripe_status(struct dm_target *ti,
 			    (unsigned long long)sc->stripe[i].physical_start);
 		break;
 	}
+	kfree(buffer);
 	return 0;
 }
 

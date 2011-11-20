@@ -31,10 +31,6 @@
 #define PM_DBG_RECORD_ADDR_ST 		0x134
 #define PM_DBG_RECORD_LENGTH		12
 #define PM_DBG_RECORD_ADDR_TI 		0x9108
-/*
-	Adjustment factors are applied here as a temp solution per the test
-	results. Need to work out a formal solution for this adjustmemt.
-*/
 #define CC_LSB_TI			91501	/* uAmS per LSB */
 #define CC_LSB_ST			95374	/* uAmS per LSB */
 #define CC_DUR				250	/* integration duration */
