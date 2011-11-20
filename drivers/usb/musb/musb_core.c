@@ -644,7 +644,8 @@ b_host:
 				musb_writeb(mbase, MUSB_DEVCTL, 0);
 			}
 		} else if (is_peripheral_capable()) {
-			DBG(1, "BUS RESET as %s\n", otg_state_string(musb));
+			printk(KERN_INFO "MUSB BUS RESET as %s\n",
+				otg_state_string(musb));
 			switch (musb->xceiv->state) {
 #ifdef CONFIG_USB_OTG
 			case OTG_STATE_A_SUSPEND:
@@ -891,7 +892,6 @@ void musb_start(struct musb *musb)
 
 	/* put into basic highspeed mode and start session */
 	musb_writeb(regs, MUSB_POWER, MUSB_POWER_ISOUPDATE
-						| MUSB_POWER_SOFTCONN
 						| MUSB_POWER_HSENAB
 						/* ENSUSPEND wedges tusb */
 						/* | MUSB_POWER_ENSUSPEND */
@@ -1068,17 +1068,33 @@ static struct fifo_cfg __initdata mode_3_cfg[] = {
 static struct fifo_cfg __initdata mode_4_cfg[] = {
 { .hw_ep_num =  1, .style = FIFO_TX,   .maxpacket = 512, },
 { .hw_ep_num =  1, .style = FIFO_RX,   .maxpacket = 512, },
+#ifdef CONFIG_USB_MOT_ANDROID
+{ .hw_ep_num =  2, .style = FIFO_TX,   .maxpacket = 64, },
+#else
 { .hw_ep_num =  2, .style = FIFO_TX,   .maxpacket = 512, },
+#endif
 { .hw_ep_num =  2, .style = FIFO_RX,   .maxpacket = 512, },
 { .hw_ep_num =  3, .style = FIFO_TX,   .maxpacket = 512, },
+#ifdef CONFIG_USB_MOT_ANDROID
+{ .hw_ep_num =  3, .style = FIFO_RX,   .maxpacket = 64, },
+#else
 { .hw_ep_num =  3, .style = FIFO_RX,   .maxpacket = 512, },
+#endif
 { .hw_ep_num =  4, .style = FIFO_TX,   .maxpacket = 512, },
 { .hw_ep_num =  4, .style = FIFO_RX,   .maxpacket = 512, },
+#ifdef CONFIG_USB_MOT_ANDROID
+{ .hw_ep_num =  5, .style = FIFO_TX,   .maxpacket = 64, },
+#else
 { .hw_ep_num =  5, .style = FIFO_TX,   .maxpacket = 512, },
+#endif
 { .hw_ep_num =  5, .style = FIFO_RX,   .maxpacket = 512, },
 { .hw_ep_num =  6, .style = FIFO_TX,   .maxpacket = 512, },
 { .hw_ep_num =  6, .style = FIFO_RX,   .maxpacket = 512, },
+#ifdef CONFIG_USB_ANDROID_RNDIS
+{ .hw_ep_num =  7, .style = FIFO_TX,   .maxpacket = 8, },
+#else
 { .hw_ep_num =  7, .style = FIFO_TX,   .maxpacket = 512, },
+#endif
 { .hw_ep_num =  7, .style = FIFO_RX,   .maxpacket = 512, },
 { .hw_ep_num =  8, .style = FIFO_TX,   .maxpacket = 512, },
 { .hw_ep_num =  8, .style = FIFO_RX,   .maxpacket = 512, },
@@ -1319,7 +1335,6 @@ static int __init musb_core_init(u16 musb_type, struct musb *musb)
 #endif
 	u8 reg;
 	char *type;
-	u16 hwvers, rev_major, rev_minor;
 	char aInfo[78], aRevision[32], aDate[12];
 	void __iomem	*mbase = musb->mregs;
 	int		status = 0;
@@ -1391,11 +1406,10 @@ static int __init musb_core_init(u16 musb_type, struct musb *musb)
 	}
 
 	/* log release info */
-	hwvers = musb_read_hwvers(mbase);
-	rev_major = (hwvers >> 10) & 0x1f;
-	rev_minor = hwvers & 0x3ff;
-	snprintf(aRevision, 32, "%d.%d%s", rev_major,
-		rev_minor, (hwvers & 0x8000) ? "RC" : "");
+	musb->hwvers = musb_read_hwvers(mbase);
+	snprintf(aRevision, 32, "%d.%d%s", MUSB_HWVERS_MAJOR(musb->hwvers),
+		MUSB_HWVERS_MINOR(musb->hwvers),
+		(musb->hwvers & MUSB_HWVERS_RC) ? "RC" : "");
 	printk(KERN_DEBUG "%s: %sHDRC RTL version %s %s\n",
 			musb_driver_name, type, aRevision, aDate);
 

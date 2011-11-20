@@ -32,10 +32,34 @@
 
 #include <linux/usb/android_composite.h>
 
+#ifdef CONFIG_USB_MOT_ANDROID
+#include "f_mot_android.h"
+#endif
+
 #define BULK_BUFFER_SIZE           4096
 
 /* number of tx requests to allocate */
 #define TX_REQ_MAX 4
+
+#ifdef CONFIG_USB_MOT_ANDROID
+#define STRING_INTERFACE        0
+
+/* static strings, in UTF-8 */
+static struct usb_string adb_string_defs[] = {
+	[STRING_INTERFACE].s = "Motorola ADB Interface",
+		{  /* ZEROES END LIST */ },
+};
+
+static struct usb_gadget_strings adb_string_table = {
+	.language =             0x0409, /* en-us */
+	.strings =              adb_string_defs,
+};
+
+static struct usb_gadget_strings *adb_strings[] = {
+	&adb_string_table,
+	NULL,
+};
+#endif
 
 static const char shortname[] = "android_adb";
 
@@ -60,6 +84,7 @@ struct adb_dev {
 	wait_queue_head_t write_wq;
 	struct usb_request *rx_req;
 	int rx_done;
+	struct mutex adb_enable_mutex;
 };
 
 static struct usb_interface_descriptor adb_interface_desc = {
@@ -319,6 +344,7 @@ requeue_req:
 	/* wait for a request to complete */
 	ret = wait_event_interruptible(dev->read_wq, dev->rx_done);
 	if (ret < 0) {
+		usb_ep_dequeue(dev->ep_out, req);
 		dev->error = 1;
 		r = ret;
 		goto done;
@@ -445,13 +471,19 @@ static struct miscdevice adb_device = {
 
 static int adb_enable_open(struct inode *ip, struct file *fp)
 {
+	printk(KERN_INFO "enabling adb\n");
+	mutex_lock(&_adb_dev->adb_enable_mutex);
 	if (atomic_inc_return(&adb_enable_excl) != 1) {
+		printk(KERN_ERR "enabling adb failed\n");
 		atomic_dec(&adb_enable_excl);
 		return -EBUSY;
 	}
 
-	printk(KERN_INFO "enabling adb\n");
+#ifdef CONFIG_USB_MOT_ANDROID
+	adb_mode_change_cb();
+#else
 	android_enable_function(&_adb_dev->function, 1);
+#endif
 
 	return 0;
 }
@@ -459,10 +491,21 @@ static int adb_enable_open(struct inode *ip, struct file *fp)
 static int adb_enable_release(struct inode *ip, struct file *fp)
 {
 	printk(KERN_INFO "disabling adb\n");
-	android_enable_function(&_adb_dev->function, 0);
 	atomic_dec(&adb_enable_excl);
+#ifdef CONFIG_USB_MOT_ANDROID
+	adb_mode_change_cb();
+#else
+	android_enable_function(&_adb_dev->function, 0);
+#endif
+	mutex_unlock(&_adb_dev->adb_enable_mutex);
 	return 0;
 }
+#ifdef CONFIG_USB_MOT_ANDROID
+int adb_enable_access(void)
+{
+	return atomic_read(&adb_enable_excl);
+}
+#endif
 
 static const struct file_operations adb_enable_fops = {
 	.owner =   THIS_MODULE,
@@ -559,6 +602,10 @@ static int adb_function_set_alt(struct usb_function *f,
 	}
 	dev->online = 1;
 
+#ifdef CONFIG_USB_MOT_ANDROID
+	usb_interface_enum_cb(ADB_TYPE_FLAG);
+#endif
+
 	/* readers may be blocked waiting for us to go online */
 	wake_up(&dev->read_wq);
 	return 0;
@@ -585,8 +632,10 @@ static int adb_bind_config(struct usb_configuration *c)
 {
 	struct adb_dev *dev;
 	int ret;
-
-	printk(KERN_INFO "adb_bind_config\n");
+#ifdef CONFIG_USB_MOT_ANDROID
+	int status;
+#endif
+	printk(KERN_INFO "Gadget Usb: adb_bind_config\n");
 
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
 	if (!dev)
@@ -600,8 +649,17 @@ static int adb_bind_config(struct usb_configuration *c)
 	atomic_set(&dev->open_excl, 0);
 	atomic_set(&dev->read_excl, 0);
 	atomic_set(&dev->write_excl, 0);
+	mutex_init(&dev->adb_enable_mutex);
 
 	INIT_LIST_HEAD(&dev->tx_idle);
+
+#ifdef CONFIG_USB_MOT_ANDROID
+	status = usb_string_id(c->cdev);
+	if (status >= 0) {
+		adb_string_defs[STRING_INTERFACE].id = status;
+		adb_interface_desc.iInterface = status;
+	}
+#endif
 
 	dev->cdev = c->cdev;
 	dev->function.name = "adb";
@@ -611,6 +669,9 @@ static int adb_bind_config(struct usb_configuration *c)
 	dev->function.unbind = adb_function_unbind;
 	dev->function.set_alt = adb_function_set_alt;
 	dev->function.disable = adb_function_disable;
+#ifdef CONFIG_USB_MOT_ANDROID
+	dev->function.strings = adb_strings;
+#endif
 
 	/* start disabled */
 	dev->function.hidden = 1;
