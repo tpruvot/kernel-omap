@@ -12,7 +12,7 @@
 #include <linux/interrupt.h>
 #include <linux/platform_device.h>
 #include <linux/gpio_mapping.h>
-#include <linux/omap_mdm_ctrl.h>
+#include <linux/mdm_ctrl.h>
 
 #ifdef CONFIG_ARM_OF
 #include <mach/dt_path.h>
@@ -32,29 +32,9 @@
 #define MAPPHONE_AP_RESET_BP_GPIO	128
 #define MAPPHONE_AP_WAKE_BP_GPIO	143
 #define MAPPHONE_BP_WAKE_AP_GPIO	29
-#define MAPPHONE_IPC_USB_SUSP		142
-#define MAPPHONE_AP_USB_BYPASS		140
 
 #define MAPPHONE_BP_QSC6085	0x001E0000
 #define MAPPHONE_BP_MDM6600	0x001E0001
-
-/* mdm6600 AP Status Value */
-#define MDM6600_AP_STATUS_BP_PANIC_ACK			0x00
-#define MDM6600_AP_STATUS_DATA_ONLY_BYPASS		0x01
-#define MDM6600_AP_STATUS_FULL_BYPASS			0x02
-#define MDM6600_AP_STATUS_NO_BYPASS				0x03
-#define MDM6600_AP_STATUS_BP_SHUTDOWN_REQ		0x04
-#define MDM6600_AP_STATUS_UNDEFINED				0x07
-
-/* mdm6600 BP Status Value */
-#define MDM6600_BP_STATUS_PANIC					0x00
-#define MDM6600_BP_STATUS_PANIC_BUSY_WAIT		0x01
-#define MDM6600_BP_STATUS_QC_DLOAD				0x02
-#define MDM6600_BP_STATUS_RAM_DOWNLOADER		0x03
-#define MDM6600_BP_STATUS_PHONE_CODE_AWAKE		0x04
-#define MDM6600_BP_STATUS_PHONE_CODE_ASLEEP		0x05
-#define MDM6600_BP_STATUS_SHUTDOWN_ACK			0x06
-#define MDM6600_BP_STATUS_UNDEFINED				0x07
 
 /* BP boot mode */
 #define BP_BOOT_INVALID			0
@@ -76,8 +56,6 @@ struct mapphone_mdm_gpios {
 	int ap_reset_bp;	/* MDM6600 */
 	int ap_wake_bp; 	/* MDM6600 */
 	int bp_wake_ap; 	/* MDM6600 */
-	int ipc_usb_susp;
-	int ap_usb_bypass;
 };
 
 struct mapphone_modem {
@@ -86,17 +64,18 @@ struct mapphone_modem {
 };
 
 static struct mapphone_modem mapphone_mdm0;
-static struct omap_mdm_ctrl_platform_data omap_mdm_ctrl_platform_data;
+static struct mdm_ctrl_platform_data mdm_ctrl_platform_data;
 
-static struct platform_device omap_mdm_ctrl_platform_device = {
-	.name = OMAP_MDM_CTRL_MODULE_NAME,
+static struct platform_device mdm_ctrl_platform_device = {
+	.name = MDM_CTRL_MODULE_NAME,
 	.id = -1,
 	.dev = {
-		.platform_data = &omap_mdm_ctrl_platform_data,
+		.platform_data = &mdm_ctrl_platform_data,
 	},
 };
 
-static int omap_mdm_ctrl_power_off_qsc6085(void)
+/* QSC6085 Control Functions */
+static int qsc6085_mdm_ctrl_power_off(void)
 {
 	int i;
 	int pd_return = 0;
@@ -137,14 +116,141 @@ static int omap_mdm_ctrl_power_off_qsc6085(void)
 	return pd_return;
 }
 
-static void set_ap_status_mdm6600(unsigned int status)
+static int qsc6085_mdm_ctrl_power_on(int bp_mode)
+{
+	int pu_result = MDM_CTRL_BP_MODE_INVALID;
+	int status, status_prev = 0;
+	int i;
+	int pu_success = 0;
+
+	pr_info("%s: powering up modem...bp_mode = %d...\n",
+		__func__, bp_mode);
+
+	if (bp_mode != MDM_CTRL_BP_MODE_NORMAL &&
+	    bp_mode != MDM_CTRL_BP_MODE_FLASH)
+		return pu_result;
+
+	/* Make sure the modem isn't already powered on */
+	if (gpio_get_value(mapphone_mdm0.gpio.bp_resout) == 1) {
+		pr_info("%s: modem already on, exiting\n", __func__);
+		return pu_result;
+	}
+
+	/* Modem is off, setup boot mode (flash or normal) */
+	if (bp_mode == MDM_CTRL_BP_MODE_NORMAL) {
+		pr_info("%s: normal mode requested\n", __func__);
+		gpio_set_value(mapphone_mdm0.gpio.ap_to_bp_flash_en, 0);
+	} else if (bp_mode == MDM_CTRL_BP_MODE_FLASH) {
+		pr_info("%s: flash mode requested\n", __func__);
+		gpio_set_value(mapphone_mdm0.gpio.ap_to_bp_flash_en, 1);
+	}
+
+	/* Enable the bp power supply */
+	gpio_set_value(mapphone_mdm0.gpio.ap_to_bp_pshold, 0);
+	msleep(100);
+
+	/* Press the bp "power button" */
+	gpio_set_value(mapphone_mdm0.gpio.bp_pwron, 1);
+	msleep(200);
+	gpio_set_value(mapphone_mdm0.gpio.bp_pwron, 0);
+
+	/* Wait up to 5 seconds for the BP to be powered up */
+	for (i = 0; i < 10; i++) {
+		status = gpio_get_value(mapphone_mdm0.gpio.bp_resout);
+		if (status == 1 && status_prev != 1) {  /* debounce */
+			status_prev = status;
+			mdelay(5);
+			continue;
+		}
+
+		if (status == 1 && status_prev == 1) {
+			pr_info("%s: modem power up complete\n",
+				__func__);
+			pu_success = 1;
+			break;
+		}
+		pr_info("%s: waiting for modem to power on...\n",
+				__func__);
+		msleep(500);
+		status_prev = status = 0;
+	}
+
+	if (!pu_success) {
+		pr_info("%s: power up failure. Modem is off.\n", __func__);
+		return 0;
+	}
+
+	/* Attempt to verify power up mode.  This isn't 100% accurate as
+	   BP_READY_AP is owned by uart and BP_READY2_AP is owned by usb.
+	   So their status during boot mode detection is not 100% reliable. */
+	for (i = 0; i < 20; i++) {
+		if (gpio_get_value(mapphone_mdm0.gpio.bp_ready_ap)) {
+			/* Confirm still in normal mode */
+			if (pu_result == MDM_CTRL_BP_MODE_NORMAL) {
+				pr_info("%s: boot mode normal confirmed\n",
+					__func__);
+				break;
+			}
+			pr_info("%s: boot mode normal detected, verifying...\n",
+				__func__);
+			pu_result = MDM_CTRL_BP_MODE_NORMAL;
+		} else if (gpio_get_value(mapphone_mdm0.gpio.bp_ready2_ap)) {
+			/* Confirm still in flash mode */
+			if (pu_result == MDM_CTRL_BP_MODE_FLASH) {
+				pr_info("%s: boot mode flash confirmed\n",
+					__func__);
+				break;
+			}
+			pr_info("%s: boot mode flash detected, verifying....\n",
+				__func__);
+			pu_result = MDM_CTRL_BP_MODE_FLASH;
+		}
+
+		msleep(100);
+	}
+
+	if (pu_result == bp_mode) {
+		pr_info("%s: boot mode[%d] verified!\n", __func__, pu_result);
+		/* Add some wait time for devices to enumerate */
+		msleep(2000);
+	} else if (pu_result == MDM_CTRL_BP_MODE_INVALID) {
+		pr_info("%s: boot mode[%d], unconfirmed\n", __func__, bp_mode);
+		pu_result = MDM_CTRL_BP_MODE_UNKNOWN;
+	}
+
+	return pu_result;
+}
+
+static unsigned int qsc6085_get_bp_status(void)
+{
+	unsigned int status = 0;
+
+    /* Not 100% accurate, but this is the best that can be done */
+	if (gpio_get_value(mapphone_mdm0.gpio.bp_resout)) {
+		if (gpio_get_value(mapphone_mdm0.gpio.bp_ready2_ap)) {
+			pr_info("%s Mode is in flash state", __func__);
+			status = MDM_CTRL_BP_STATUS_RDL;
+		} else if (gpio_get_value(mapphone_mdm0.gpio.bp_ready_ap)) {
+			pr_info("%s Mode is in normal state", __func__);
+			status = MDM_CTRL_BP_STATUS_AWAKE;
+		}
+	} else {
+		pr_info("%s Mode is in power off state", __func__);
+		status = MDM_CTRL_BP_STATUS_UNKNOWN;
+	}
+
+	return status;
+}
+
+/* MDM6600 Control Functions */
+static void mdm6600_set_ap_status(unsigned int status)
 {
 	gpio_set_value(mapphone_mdm0.gpio.ap_ready_bp, (status & 0x1));
 	gpio_set_value(mapphone_mdm0.gpio.ap_ready2_bp, (status >> 1) & 0x1);
 	gpio_set_value(mapphone_mdm0.gpio.ap_ready3_bp, (status >> 2) & 0x1);
 }
 
-static unsigned int get_bp_status_mdm6600(void)
+static unsigned int mdm6600_get_bp_status(void)
 {
 	unsigned int status = 0;
 	unsigned int bp_status[3];
@@ -159,7 +265,20 @@ static unsigned int get_bp_status_mdm6600(void)
 	return status;
 }
 
-static int omap_mdm_ctrl_power_off_mdm6600(void)
+static void mdm6600_set_two_wakes(int bp_mode)
+{
+	int value = 0;
+
+	if (bp_mode == MDM_CTRL_BP_MODE_FLASH)
+		value = 3;
+
+	gpio_direction_output(
+		mapphone_mdm0.gpio.bp_wake_ap, (value & 0x1));
+	gpio_direction_output(
+		mapphone_mdm0.gpio.ap_wake_bp, ((value >> 1) & 0x1));
+}
+
+static int mdm6600_mdm_ctrl_power_off(void)
 {
 	unsigned int bp_status;
 	int i;
@@ -174,7 +293,7 @@ static int omap_mdm_ctrl_power_off_mdm6600(void)
 	}
 
 	/* Request BP shutdown through AP status lines */
-	set_ap_status_mdm6600(MDM6600_AP_STATUS_BP_SHUTDOWN_REQ);
+	mdm6600_set_ap_status(MDM_CTRL_AP_STATUS_BP_SHUTDOWN);
 	mdelay(100);
 	pr_info("%s: AP status set to shutdown req...\n", __func__);
 
@@ -184,10 +303,10 @@ static int omap_mdm_ctrl_power_off_mdm6600(void)
 
 	/* Wait up to 5 seconds for BP to properly power down */
 	for (i = 0; i < 10; i++) {
-		bp_status = get_bp_status_mdm6600();
+		bp_status = mdm6600_get_bp_status();
 
 		pr_info("%s: BP status is: 0x%x \n", __func__,  bp_status);
-		if (bp_status == MDM6600_BP_STATUS_SHUTDOWN_ACK) {
+		if (bp_status == MDM_CTRL_BP_STATUS_SHUTDOWN_ACK) {
 			pr_info("%s: BP power down success.\n", __func__);
 			pd_return = 2;
 			break;
@@ -201,41 +320,86 @@ static int omap_mdm_ctrl_power_off_mdm6600(void)
 		/* BP failed to power down, pull out the battery*/
 		pr_info("%s: BP PWR DN failure,pull Battery. \n", __func__);
 		/* TODO Forcefully pull power from MDM6600 */
+		/* Assert AP_RESET_BP high */
+		gpio_set_value(mapphone_mdm0.gpio.ap_reset_bp, 1);
+		mdelay(7000);
+		gpio_set_value(mapphone_mdm0.gpio.ap_reset_bp, 0);
 	}
 
 	return pd_return;
 }
 
-static void set_two_wakes_mdm6600(int bp_mode)
+static int mdm6600_mdm_ctrl_power_on(int bp_mode)
 {
-	int value = 0;
+	int i;
+	int bp_status = 0;
+	int bp_status_prev = -1;
+	int pu_result = MDM_CTRL_BP_MODE_INVALID;
 
-	if (bp_mode == BP_BOOT_FLASH_MODE)
-		value = 3;
+	pr_info("%s: powering up modem...bp_mode = %d...\n",
+		__func__, bp_mode);
 
-	gpio_direction_output(
-		mapphone_mdm0.gpio.bp_wake_ap, (value & 0x1));
-	gpio_direction_output(
-		mapphone_mdm0.gpio.ap_wake_bp, ((value >> 1) & 0x1));
+	mdm6600_set_two_wakes(bp_mode);
+	msleep(200);
+
+	/* Request BP startup */
+	mdm6600_set_ap_status(MDM_CTRL_AP_STATUS_NO_BYPASS);
+
+	gpio_set_value(mapphone_mdm0.gpio.ap_reset_bp, 0);
+
+	gpio_set_value(mapphone_mdm0.gpio.bp_pwron, 1);
+	msleep(500);
+	gpio_set_value(mapphone_mdm0.gpio.bp_pwron, 0);
+
+	/* Wait for the modem to acknowledge powerup */
+	for (i = 0; i < 100; i++) {
+		bp_status = mdm6600_get_bp_status();
+		if (bp_status != bp_status_prev) {  /* debounce */
+			bp_status_prev = bp_status;
+			mdelay(5);
+			continue;
+		}
+
+		if (bp_status == MDM_CTRL_BP_STATUS_AWAKE) {
+			pr_info("%s: modem power up complete in normal mode\n",
+				__func__);
+			pu_result = MDM_CTRL_BP_MODE_NORMAL;
+			break;
+		} else if (bp_status == MDM_CTRL_BP_STATUS_RDL) {
+			pr_info("%s: modem power up complete in flash mode\n",
+				__func__);
+			pu_result = MDM_CTRL_BP_MODE_FLASH;
+			break;
+		} else
+			msleep(50);
+	}
+
+	if (pu_result == MDM_CTRL_BP_MODE_INVALID) {
+		pu_result = MDM_CTRL_BP_MODE_UNKNOWN;
+		pr_info("%s: modem did not acknowledge powerup: status=%d\n",
+		__func__, bp_status);
+	}
+	return pu_result;
+
 }
 
-static int omap_mdm_ctrl_bp_reset_mdm6600(int bp_mode)
+static int mdm6600_mdm_ctrl_bp_reset(int bp_mode)
 {
 	int bp_status = 0;
 	int result = 0;
 
 	pr_info("%s: bp reset...bp_mode = %d\n", __func__, bp_mode);
 
-	set_two_wakes_mdm6600(bp_mode);
+	mdm6600_set_two_wakes(bp_mode);
 
 	gpio_set_value(mapphone_mdm0.gpio.ap_reset_bp, 1);
 
 	/* BP will power down in ~(3 + .25)secs after resetting */
 	msleep(4000);
 
-	bp_status = get_bp_status_mdm6600();
+	bp_status = mdm6600_get_bp_status();
 
-	if (bp_status == MDM6600_BP_STATUS_PHONE_CODE_AWAKE) {
+	if (bp_status == MDM_CTRL_BP_STATUS_AWAKE) {
 		pr_info("%s: bp reset to power up bp_status = %d...\n",
 			__func__, bp_status);
 		result = 1;
@@ -246,61 +410,7 @@ static int omap_mdm_ctrl_bp_reset_mdm6600(int bp_mode)
 	return result;
 }
 
-static int omap_mdm_ctrl_power_up_mdm6600(int bp_mode)
-{
-	int i;
-	int bp_status = 0;
-	int bp_status_prev = -1;
-	int pu_result = BP_BOOT_INVALID;
-
-	pr_info("%s: powering up modem...bp_mode = %d...\n",
-		__func__, bp_mode);
-
-	set_two_wakes_mdm6600(bp_mode);
-	msleep(200);
-
-	/* Request BP startup */
-	set_ap_status_mdm6600(MDM6600_AP_STATUS_NO_BYPASS);
-
-	gpio_set_value(mapphone_mdm0.gpio.ap_reset_bp, 0);
-
-	gpio_set_value(mapphone_mdm0.gpio.bp_pwron, 1);
-	msleep(500);
-	gpio_set_value(mapphone_mdm0.gpio.bp_pwron, 0);
-
-	/* Wait for the modem to acknowledge powerup */
-	for (i = 0; i < 100; i++) {
-		bp_status = get_bp_status_mdm6600();
-		if (bp_status != bp_status_prev) {  /* debounce */
-			bp_status_prev = bp_status;
-			mdelay(5);
-			continue;
-		}
-
-		if (bp_status == MDM6600_BP_STATUS_PHONE_CODE_AWAKE) {
-			pr_info("%s: modem power up complete in normal mode\n",
-				__func__);
-			pu_result = BP_BOOT_NORMAL_MODE;
-			break;
-		} else if (bp_status == MDM6600_BP_STATUS_RAM_DOWNLOADER) {
-			pr_info("%s: modem power up complete in flash mode\n",
-				__func__);
-			pu_result = BP_BOOT_FLASH_MODE;
-			break;
-		} else
-			msleep(50);
-	}
-
-	if (pu_result == BP_BOOT_INVALID) {
-		pu_result = BP_BOOT_UNKNOWN_MODE;
-		pr_info("%s: modem did not acknowledge powerup: status=%d\n",
-		__func__, bp_status);
-	}
-	return pu_result;
-
-}
-
-static int mapphone_bp_get_type(void)
+int mapphone_bp_get_type(void)
 {
 	int ret = 0;
 #ifdef CONFIG_ARM_OF
@@ -388,17 +498,17 @@ static int mapphone_qsc6085_init_gpio(void)
 	gpio_request(mapphone_mdm0.gpio.ap_to_bp_pshold, "AP to BP PS Hold");
 	gpio_direction_output(mapphone_mdm0.gpio.ap_to_bp_pshold, 0);
 
-	omap_mdm_ctrl_platform_data.ap_to_bp_flash_en_gpio =
+	mdm_ctrl_platform_data.ap_to_bp_flash_en_gpio =
 		mapphone_mdm0.gpio.ap_to_bp_flash_en;
-	omap_mdm_ctrl_platform_data.bp_pwron_gpio =
+	mdm_ctrl_platform_data.bp_pwron_gpio =
 		mapphone_mdm0.gpio.bp_pwron;
-	omap_mdm_ctrl_platform_data.ap_to_bp_pshold_gpio =
+	mdm_ctrl_platform_data.ap_to_bp_pshold_gpio =
 		mapphone_mdm0.gpio.ap_to_bp_pshold;
-	omap_mdm_ctrl_platform_data.bp_resout_gpio =
+	mdm_ctrl_platform_data.bp_resout_gpio =
 		mapphone_mdm0.gpio.bp_resout;
-	omap_mdm_ctrl_platform_data.bp_ready_ap_gpio =
+	mdm_ctrl_platform_data.bp_ready_ap_gpio =
 		mapphone_mdm0.gpio.bp_ready_ap;
-	omap_mdm_ctrl_platform_data.bp_ready2_ap_gpio =
+	mdm_ctrl_platform_data.bp_ready2_ap_gpio =
 		mapphone_mdm0.gpio.bp_ready2_ap;
 	return 0;
 }
@@ -471,87 +581,39 @@ static int mapphone_mdm6600_init_gpio(void)
 			MAPPHONE_BP_WAKE_AP_GPIO;
 	}
 
-	mapphone_mdm0.gpio.ipc_usb_susp =
-		get_gpio_by_name("ipc_o_usb_susp");
-	if (mapphone_mdm0.gpio.ipc_usb_susp < 0) {
-		printk(KERN_DEBUG "%s: can't get ipc_o_usb_susp "
-				"from device_tree\n", __func__);
-		mapphone_mdm0.gpio.ipc_usb_susp =
-			MAPPHONE_IPC_USB_SUSP;
-	}
-
-	mapphone_mdm0.gpio.ap_usb_bypass =
-		get_gpio_by_name("ipc_o_usb_bypass");
-	if (mapphone_mdm0.gpio.ap_usb_bypass < 0) {
-		printk(KERN_DEBUG "%s: can't get ipc_o_usb_bypass "
-				"from device_tree\n", __func__);
-		mapphone_mdm0.gpio.ap_usb_bypass =
-			MAPPHONE_AP_USB_BYPASS;
-	}
-
-
 	gpio_request(mapphone_mdm0.gpio.ap_reset_bp, "AP Reset BP");
 	gpio_direction_output(mapphone_mdm0.gpio.ap_reset_bp, 0);
 
 	gpio_request(mapphone_mdm0.gpio.bp_wake_ap, "BP AWAKE AP");
-	gpio_direction_output(mapphone_mdm0.gpio.bp_wake_ap, 0);
 
 	gpio_request(mapphone_mdm0.gpio.ap_wake_bp, "AP AWAKE BP");
-	gpio_direction_output(mapphone_mdm0.gpio.ap_wake_bp, 0);
-
-	 omap_mdm_ctrl_platform_data.ipc_usb_susp_gpio =
-		mapphone_mdm0.gpio.ipc_usb_susp;
-
-	 omap_mdm_ctrl_platform_data.ap_usb_bypass_gpio =
-		mapphone_mdm0.gpio.ap_usb_bypass;
-
-	omap_mdm_ctrl_platform_data.ap_wake_bp_gpio =
-		mapphone_mdm0.gpio.ap_wake_bp;
-
-	 omap_mdm_ctrl_platform_data.bp_wake_ap_gpio =
-		mapphone_mdm0.gpio.bp_wake_ap;
-
 
 	return 0;
 }
 
-static int mapphone_omap_mdm_ctrl_init_mdm6600(void)
+static int mapphone_mdm6600_mdm_ctrl_init(void)
 {
 	mapphone_mdm6600_init_gpio();
-	omap_mdm_ctrl_platform_data.power_off =
-		omap_mdm_ctrl_power_off_mdm6600;
-
-	omap_mdm_ctrl_platform_data.power_up =
-		omap_mdm_ctrl_power_up_mdm6600;
-
-	omap_mdm_ctrl_platform_data.reset =
-		omap_mdm_ctrl_bp_reset_mdm6600;
-
-	omap_mdm_ctrl_platform_data.set_ap_status =
-		set_ap_status_mdm6600;
-
-	omap_mdm_ctrl_platform_data.get_bp_status =
-		get_bp_status_mdm6600;
+	mdm_ctrl_platform_data.power_off = mdm6600_mdm_ctrl_power_off;
+	mdm_ctrl_platform_data.power_on = mdm6600_mdm_ctrl_power_on;
+	mdm_ctrl_platform_data.reset = mdm6600_mdm_ctrl_bp_reset;
+	mdm_ctrl_platform_data.set_ap_status = mdm6600_set_ap_status;
+	mdm_ctrl_platform_data.get_bp_status = mdm6600_get_bp_status;
 	return 0;
 }
 
-static int mapphone_omap_mdm_ctrl_init_qsc6085(void)
+static int mapphone_qsc6085_mdm_ctrl_init(void)
 {
 	mapphone_qsc6085_init_gpio();
-	omap_mdm_ctrl_platform_data.power_off =
-		omap_mdm_ctrl_power_off_qsc6085;
-	omap_mdm_ctrl_platform_data.power_up = NULL;
-
-	omap_mdm_ctrl_platform_data.reset = NULL;
-
-	omap_mdm_ctrl_platform_data.set_ap_status = NULL;
-
-	omap_mdm_ctrl_platform_data.get_bp_status = NULL;
-
+	mdm_ctrl_platform_data.power_off = qsc6085_mdm_ctrl_power_off;
+	mdm_ctrl_platform_data.power_on = qsc6085_mdm_ctrl_power_on;
+	mdm_ctrl_platform_data.reset = NULL;
+	mdm_ctrl_platform_data.set_ap_status = NULL;
+	mdm_ctrl_platform_data.get_bp_status = qsc6085_get_bp_status;
 	return 0;
 }
 
-int __init mapphone_omap_mdm_ctrl_init(void)
+int __init mapphone_mdm_ctrl_init(void)
 {
 	int ret = 0;
 	mapphone_mdm0.type = mapphone_bp_get_type();
@@ -560,16 +622,16 @@ int __init mapphone_omap_mdm_ctrl_init(void)
 
 	switch (mapphone_mdm0.type) {
 	case MAPPHONE_BP_MDM6600:
-		ret = mapphone_omap_mdm_ctrl_init_mdm6600();
+		ret = mapphone_mdm6600_mdm_ctrl_init();
 		break;
 	case MAPPHONE_BP_QSC6085:
-		ret = mapphone_omap_mdm_ctrl_init_qsc6085();
+		ret = mapphone_qsc6085_mdm_ctrl_init();
 		break;
 	default:
 		ret = -ENODEV;
 		break;
 	}
 	if (!ret)
-		ret = platform_device_register(&omap_mdm_ctrl_platform_device);
+		ret = platform_device_register(&mdm_ctrl_platform_device);
 	return ret;
 }

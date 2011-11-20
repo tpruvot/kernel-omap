@@ -43,20 +43,17 @@
 #include <asm/prom.h>
 #endif
 
-#define MAPPHONE_AKM8973_INT_GPIO	175
-#define MAPPHONE_AKM8973_RESET_GPIO	28
-#define MAPPHONE_HF_NORTH_GPIO		10
-#define MAPPHONE_HF_SOUTH_GPIO		111
-#define MAPPHONE_KXTF9_INT_GPIO		22
 #define MAPPHONE_PROX_INT_GPIO		180
 #define MAPPHONE_VIBRATOR_GPIO		181
+
 #define PROXIMITY_SFH7743		0
 #define PROXIMITY_ISL29030		1
-#define PROXIMITY_INDEX			1
 
 static u8 prox_sensor_type = PROXIMITY_SFH7743;
 
-static char *prox_get_pwr_supply(void);
+/*
+ * Vibe
+ */
 
 static int vib_pwm_period;
 static int vib_pwm_duty;
@@ -112,6 +109,31 @@ static struct platform_device mapphone_vib_gpio = {
 		.platform_data  = &mapphone_vib_gpio_data,
 	},
 };
+
+static void mapphone_vibrator_init(void)
+{
+	int vibrator_gpio = MAPPHONE_VIBRATOR_GPIO;
+#ifdef CONFIG_ARM_OF
+	vibrator_gpio = get_gpio_by_name("vib_control_en");
+	if (vibrator_gpio < 0) {
+		printk(KERN_DEBUG
+			"cannot retrieve vib_control_en from device tree\n");
+		vibrator_gpio = MAPPHONE_VIBRATOR_GPIO;
+	}
+	mapphone_vib_gpio_data.gpio = vibrator_gpio;
+#endif
+	if (gpio_request(mapphone_vib_gpio_data.gpio, "vib_ctrl_en")) {
+		printk(KERN_ERR "vib_control_en GPIO request failed!\n");
+		return;
+	}
+
+	gpio_direction_output(vibrator_gpio, 0);
+	omap_cfg_reg(Y4_34XX_GPIO181);
+}
+
+/*
+ * Lvibe
+ */
 
 static struct omap_dm_timer *vib_pwm_timer;
 
@@ -425,6 +447,86 @@ static struct platform_device mapphone_vib_pwm = {
 	},
 };
 
+static int mapphone_lvibrator_devtree(void)
+{
+#ifdef CONFIG_ARM_OF
+	struct device_node *vib_pwm_node;
+	const void *vib_pwm_prop = NULL;
+	int len = 0;
+#endif
+	u8 lvibrator_in_device = 0;
+
+	vib_pwm_enable_gpio = 9;
+	vib_pwm_period = 5714;
+	vib_pwm_duty = 2857;
+
+#ifdef CONFIG_ARM_OF
+	vib_pwm_node = of_find_node_by_path("/System@0/LinearVibrator@0");
+	if (vib_pwm_node != NULL) {
+		lvibrator_in_device = 1;
+
+		vib_pwm_prop = of_get_property(vib_pwm_node, "supported", &len);
+		if (vib_pwm_prop != NULL)
+			lvibrator_in_device = *((u8 *)vib_pwm_prop);
+
+		if (lvibrator_in_device != 0) {
+			vib_pwm_prop = of_get_property(vib_pwm_node,
+					"period", &len);
+			if (vib_pwm_prop != NULL)
+				vib_pwm_period = *((int *)vib_pwm_prop);
+
+			vib_pwm_prop = of_get_property(vib_pwm_node,
+					"cycle", &len);
+			if (vib_pwm_prop != NULL)
+				vib_pwm_duty = *((int *)vib_pwm_prop);
+
+			vib_pwm_prop = of_get_property(vib_pwm_node,
+					"gpio", &len);
+			if (vib_pwm_prop != NULL)
+				vib_pwm_enable_gpio = *((int *)vib_pwm_prop);
+
+			vib_pwm_prop = of_get_property(vib_pwm_node,
+					"linear_vib_only", NULL);
+			if (vib_pwm_prop != NULL)
+				linear_vib_only = *((int *)vib_pwm_prop);
+			else
+				pr_err("Read property linear_vib_only "
+						"error!\n");
+		}
+
+		of_node_put(vib_pwm_node);
+	}
+#endif
+	return lvibrator_in_device;
+}
+
+/*
+ * SFH7743
+ */
+
+static char *prox_get_pwr_supply(void)
+{
+	char *prox_regulator = "vsdio";
+#ifdef CONFIG_ARM_OF
+	const void *pwr_supply_prop;
+	struct device_node *prox_node =
+		of_find_node_by_path("/System@0/PROX@0");
+
+	if (prox_node) {
+		pwr_supply_prop = of_get_property(prox_node,
+				 "pwr_supply", NULL);
+		if (pwr_supply_prop) {
+			if (*(u32 *)pwr_supply_prop == 0x0)
+				prox_regulator = "vrf1";
+			else if	 (*(u32 *)pwr_supply_prop == 0x1)
+				prox_regulator = "vsdio";
+		}
+		of_node_put(prox_node);
+	}
+
+#endif
+		return prox_regulator;
+}
 
 static struct regulator *mapphone_sfh7743_regulator;
 static int mapphone_sfh7743_initialization(void)
@@ -470,7 +572,7 @@ static void __init mapphone_sfh7743_init(void)
 	proximity_gpio = get_gpio_by_name("proximity_int");
 	if (proximity_gpio < 0) {
 		printk(KERN_DEBUG
-		"cannot retrieve proximity_init from device tree\n");
+		"cannot retrieve proximity_int from device tree\n");
 		proximity_gpio = MAPPHONE_PROX_INT_GPIO;
 	}
 	mapphone_sfh7743_data.gpio = proximity_gpio;
@@ -479,6 +581,18 @@ static void __init mapphone_sfh7743_init(void)
 	gpio_direction_input(proximity_gpio);
 	omap_cfg_reg(Y3_34XX_GPIO180);
 }
+
+struct platform_device sfh7743_platform_device = {
+	.name = "sfh7743",
+	.id = -1,
+	.dev = {
+		.platform_data = &mapphone_sfh7743_data,
+	},
+};
+
+/*
+ * AIRC
+ */
 
 static struct regulator *mapphone_airc_regulator;
 static int mapphone_airc_initialization(void)
@@ -526,11 +640,9 @@ static void __init mapphone_airc_init(void)
 }
 #endif
 
-static struct bu52014hfv_platform_data bu52014hfv_platform_data = {
-	.docked_north_gpio = MAPPHONE_HF_NORTH_GPIO,
-	.docked_south_gpio = MAPPHONE_HF_SOUTH_GPIO,
-	.north_is_desk = 1,
-};
+/*
+ * LIS331DLH
+ */
 
 static struct regulator *mapphone_lis331dlh_regulator;
 static int mapphone_lis331dlh_initialization(void)
@@ -580,6 +692,12 @@ struct lis331dlh_platform_data mapphone_lis331dlh_data = {
 	.negate_z	= 0,
 };
 
+/*
+ * KXTF9
+ */
+
+#define MAPPHONE_KXTF9_INT_GPIO		22
+
 static struct regulator *mapphone_kxtf9_regulator;
 static int mapphone_kxtf9_initialization(void)
 {
@@ -619,13 +737,13 @@ struct kxtf9_platform_data mapphone_kxtf9_data = {
 
 	.g_range	= KXTF9_G_8G,
 
-	.axis_map_x	= 1,
-	.axis_map_y	= 0,
+	.axis_map_x	= 0,
+	.axis_map_y	= 1,
 	.axis_map_z	= 2,
 
 	.negate_x	= 0,
 	.negate_y	= 0,
-	.negate_z	= 1,
+	.negate_z	= 0,
 
 	.data_odr_init		= ODR12_5,
 	.ctrl_reg1_init		= RES_12BIT | KXTF9_G_2G | TPE | WUFE | TDTE,
@@ -736,9 +854,9 @@ static void __init mapphone_kxtf9_init(void)
 
 }
 
-/**
- *  AKM8975
- **/
+/*
+ * AKM8975
+ */
 
 static struct regulator *mapphone_akm8975_regulator;
 
@@ -796,12 +914,19 @@ static void __init mapphone_akm8975_init(void)
 		return;
 	}
 
-	gpio_request(akm8975_reset_gpio, "akm8973 reset");
+	gpio_request(akm8975_reset_gpio, "akm8975 reset");
 	gpio_direction_output(akm8975_reset_gpio, 1);
 
 	gpio_request(akm8975_int_gpio, "akm8975 irq");
 	gpio_direction_input(akm8975_int_gpio);
 }
+
+/*
+ * AKM8973
+ */
+
+#define MAPPHONE_AKM8973_INT_GPIO	175
+#define MAPPHONE_AKM8973_RESET_GPIO	28
 
 static void __init mapphone_akm8973_init(void)
 {
@@ -813,6 +938,22 @@ static void __init mapphone_akm8973_init(void)
 	gpio_direction_input(MAPPHONE_AKM8973_INT_GPIO);
 	omap_cfg_reg(AC3_34XX_GPIO175);
 }
+
+/*
+ * ISL29030
+ */
+
+struct isl29030_platform_data isl29030_pdata = {
+	.configure = 0x62,
+	.interrupt_cntrl = 0x20,
+	.prox_lower_threshold = 0x1e,
+	.prox_higher_threshold = 0x32,
+	.crosstalk_vs_covered_threshold = 0x30,
+	.default_prox_noise_floor = 0x30,
+	.num_samples_for_noise_floor = 0x05,
+	.lens_percent_t = 20,
+	.regulator_name = {0},
+};
 
 static ssize_t isl29030_sysfs_show(struct class *dev, char *buf)
 {
@@ -834,62 +975,6 @@ static ssize_t isl29030_sysfs_show(struct class *dev, char *buf)
 
 static CLASS_ATTR(isl29030, S_IRUGO, isl29030_sysfs_show, NULL);
 
-#define ISL29030_REGULATOR_NAME_LENGTH 10
-static char isl29030_regulator_name[ISL29030_REGULATOR_NAME_LENGTH] = {'\0'};
-static struct regulator *mapphone_isl29030_regulator;
-
-static int mapphone_isl29030_initialization(void)
-{
-	struct regulator *reg;
-
-	if (isl29030_regulator_name[0] != '\0') {
-		reg = regulator_get(NULL, isl29030_regulator_name);
-		if (IS_ERR(reg)) {
-			printk(KERN_ERR
-			       "isl29030: can't acquire regulator [%s]\n",
-			       isl29030_regulator_name);
-			return PTR_ERR(reg);
-		}
-		mapphone_isl29030_regulator = reg;
-	}
-	return 0;
-}
-
-static void mapphone_isl29030_exit(void)
-{
-	if (mapphone_isl29030_regulator)
-		regulator_put(mapphone_isl29030_regulator);
-}
-
-static int mapphone_isl29030_power_on(void)
-{
-	if (mapphone_isl29030_regulator)
-		return regulator_enable(mapphone_isl29030_regulator);
-	return 0;
-}
-
-static int mapphone_isl29030_power_off(void)
-{
-	if (mapphone_isl29030_regulator)
-		return regulator_disable(mapphone_isl29030_regulator);
-	return 0;
-}
-
-struct isl29030_platform_data isl29030_pdata = {
-	.init = mapphone_isl29030_initialization,
-	.exit = mapphone_isl29030_exit,
-	.power_on = mapphone_isl29030_power_on,
-	.power_off = mapphone_isl29030_power_off,
-	.configure = 0x66,
-	.interrupt_cntrl = 0x20,
-	.prox_lower_threshold = 0x1e,
-	.prox_higher_threshold = 0x32,
-	.crosstalk_vs_covered_threshold = 0x30,
-	.default_prox_noise_floor = 0x05,
-	.num_samples_for_noise_floor = 0x05,
-	.lens_percent_t = 20,
-};
-
 static int mapphone_isl29030_init(void)
 {
 	int err = 0;
@@ -907,8 +992,8 @@ static int mapphone_isl29030_init(void)
 		pr_err("%s - opened node %s from device tree\n",
 			__func__, DT_PATH_PROX);
 
-		prop_str	= DT_PROP_ISL29030_CONF;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_CONF;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -916,8 +1001,8 @@ static int mapphone_isl29030_init(void)
 		} else
 			isl29030_pdata.configure = *(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_INT_CNTL;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_INT_CNTL;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 					 __func__, prop_str);
@@ -925,8 +1010,8 @@ static int mapphone_isl29030_init(void)
 		} else
 			isl29030_pdata.interrupt_cntrl = *(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_PROX_LOW_TH;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_PROX_LOW_TH;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -934,8 +1019,8 @@ static int mapphone_isl29030_init(void)
 		} else
 			isl29030_pdata.prox_lower_threshold = *(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_PROX_HIGH_TH;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_PROX_HIGH_TH;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -943,8 +1028,8 @@ static int mapphone_isl29030_init(void)
 		} else
 			isl29030_pdata.prox_higher_threshold = *(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_XTALK_V_COV_TH;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_XTALK_V_COV_TH;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -953,8 +1038,8 @@ static int mapphone_isl29030_init(void)
 			isl29030_pdata.crosstalk_vs_covered_threshold =
 				*(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_DEF_PROX_NOISE;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_DEF_PROX_NOISE;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -962,8 +1047,8 @@ static int mapphone_isl29030_init(void)
 		} else
 			isl29030_pdata.default_prox_noise_floor = *(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_NUM_SAMP_NOISE;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_NUM_SAMP_NOISE;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -972,8 +1057,8 @@ static int mapphone_isl29030_init(void)
 			isl29030_pdata.num_samples_for_noise_floor =
 				*(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_LENS_PERCENT;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_LENS_PERCENT;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_err("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -981,8 +1066,8 @@ static int mapphone_isl29030_init(void)
 		} else
 			isl29030_pdata.lens_percent_t = *(u8 *)prop;
 
-		prop_str	= DT_PROP_ISL29030_REGULATOR;
-		prop		= of_get_property(prox_node, prop_str, &len);
+		prop_str = DT_PROP_ISL29030_REGULATOR;
+		prop = of_get_property(prox_node, prop_str, &len);
 		if ((prop == NULL) || (len == 0)) {
 			pr_info("%s - unable to read %s from device tree\n",
 				 __func__, prop_str);
@@ -995,7 +1080,8 @@ static int mapphone_isl29030_init(void)
 				len = ISL29030_REGULATOR_NAME_LENGTH - 1;
 			}
 			for (i = 0; i < len; i++)
-				isl29030_regulator_name[i] = ((char *)prop)[i];
+				isl29030_pdata.regulator_name[i] =
+					((char *)prop)[i];
 		}
 
 		of_node_put(prox_node);
@@ -1022,133 +1108,18 @@ static int mapphone_isl29030_init(void)
 	return err;
 }
 
-struct platform_device kxtf9_platform_device = {
-	.name = "kxtf9",
-	.id = -1,
-	.dev = {
-		.platform_data = &mapphone_kxtf9_data,
-	},
+/*
+ * BU52014HFV
+ */
+
+#define MAPPHONE_HF_NORTH_GPIO		10
+#define MAPPHONE_HF_SOUTH_GPIO		111
+
+static struct bu52014hfv_platform_data bu52014hfv_platform_data = {
+	.docked_north_gpio = MAPPHONE_HF_NORTH_GPIO,
+	.docked_south_gpio = MAPPHONE_HF_SOUTH_GPIO,
+	.north_is_desk = 1,
 };
-
-struct platform_device sfh7743_platform_device = {
-	.name = "sfh7743",
-	.id = -1,
-	.dev = {
-		.platform_data = &mapphone_sfh7743_data,
-	},
-};
-
-static struct platform_device omap3430_hall_effect_dock = {
-	.name	= BU52014HFV_MODULE_NAME,
-	.id	= -1,
-	.dev	= {
-		.platform_data  = &bu52014hfv_platform_data,
-	},
-};
-
-static void mapphone_vibrator_init(void)
-{
-	int vibrator_gpio = MAPPHONE_VIBRATOR_GPIO;
-#ifdef CONFIG_ARM_OF
-	vibrator_gpio = get_gpio_by_name("vib_control_en");
-	if (vibrator_gpio < 0) {
-		printk(KERN_DEBUG
-			"cannot retrieve vib_control_en from device tree\n");
-		vibrator_gpio = MAPPHONE_VIBRATOR_GPIO;
-	}
-	mapphone_vib_gpio_data.gpio = vibrator_gpio;
-#endif
-	if (gpio_request(mapphone_vib_gpio_data.gpio, "vib_ctrl_en")) {
-		printk(KERN_ERR "vib_control_en GPIO request failed!\n");
-		return;
-	}
-
-	gpio_direction_output(vibrator_gpio, 0);
-	omap_cfg_reg(Y4_34XX_GPIO181);
-}
-
-static struct platform_device *mapphone_sensors[] __initdata = {
-	&kxtf9_platform_device,
-};
-
-static int mapphone_lvibrator_devtree(void)
-{
-#ifdef CONFIG_ARM_OF
-	struct device_node *vib_pwm_node;
-	const void *vib_pwm_prop = NULL;
-	int len = 0;
-#endif
-	u8 lvibrator_in_device = 0;
-
-	vib_pwm_enable_gpio = 9;
-	vib_pwm_period = 5714;
-	vib_pwm_duty = 2857;
-
-#ifdef CONFIG_ARM_OF
-	vib_pwm_node = of_find_node_by_path("/System@0/LinearVibrator@0");
-	if (vib_pwm_node != NULL) {
-		lvibrator_in_device = 1;
-
-		vib_pwm_prop = of_get_property(vib_pwm_node, "supported", &len);
-		if (vib_pwm_prop != NULL)
-			lvibrator_in_device = *((u8 *)vib_pwm_prop);
-
-		if (lvibrator_in_device != 0) {
-			vib_pwm_prop = of_get_property(vib_pwm_node,
-					"period", &len);
-			if (vib_pwm_prop != NULL)
-				vib_pwm_period = *((int *)vib_pwm_prop);
-
-			vib_pwm_prop = of_get_property(vib_pwm_node,
-					"cycle", &len);
-			if (vib_pwm_prop != NULL)
-				vib_pwm_duty = *((int *)vib_pwm_prop);
-
-			vib_pwm_prop = of_get_property(vib_pwm_node,
-					"gpio", &len);
-			if (vib_pwm_prop != NULL)
-				vib_pwm_enable_gpio = *((int *)vib_pwm_prop);
-
-			vib_pwm_prop = of_get_property(vib_pwm_node,
-					"linear_vib_only", NULL);
-			if (vib_pwm_prop != NULL)
-				linear_vib_only = *((int *)vib_pwm_prop);
-			else
-				pr_err("Read property linear_vib_only "
-						"error!\n");
-		}
-
-		of_node_put(vib_pwm_node);
-	}
-#endif
-	return lvibrator_in_device;
-}
-
-
-static char *prox_get_pwr_supply(void)
-{
-	char *prox_regulator = "vsdio";
-#ifdef CONFIG_ARM_OF
-	const void *pwr_supply_prop;
-	struct device_node *prox_node =
-		of_find_node_by_path("/System@0/PROX@0");
-
-	if (prox_node) {
-		pwr_supply_prop = of_get_property(prox_node,
-				 "pwr_supply", NULL);
-		if (pwr_supply_prop) {
-			if (*(u32 *)pwr_supply_prop == 0x0)
-				prox_regulator = "vrf1";
-			else if	 (*(u32 *)pwr_supply_prop == 0x1)
-				prox_regulator = "vsdio";
-		}
-		of_node_put(prox_node);
-	}
-
-#endif
-		return prox_regulator;
-}
-
 
 static void mapphone_bu52014hfv_init(void)
 {
@@ -1176,14 +1147,20 @@ static void mapphone_bu52014hfv_init(void)
 	gpio_request(MAPPHONE_HF_SOUTH_GPIO, "mapphone dock south");
 	gpio_direction_input(MAPPHONE_HF_SOUTH_GPIO);
 	omap_cfg_reg(B26_34XX_GPIO111);
-
-	platform_device_register(&omap3430_hall_effect_dock);
 }
 
+static struct platform_device omap3430_hall_effect_dock = {
+	.name	= BU52014HFV_MODULE_NAME,
+	.id	= -1,
+	.dev	= {
+		.platform_data  = &bu52014hfv_platform_data,
+	},
+};
 
- /**
- *      ADP8870
- **/
+/*
+ * ADP8870
+ */
+
 static void __init mapphone_adp8870_init(void)
 {
 #ifdef CONFIG_ARM_OF
@@ -1247,6 +1224,10 @@ struct adp8870_backlight_platform_data adp8870_pdata = {
 	.led_on_time = ADP8870_LED_ONT_200ms,
 };
 
+/*
+ * Sensors
+ */
+
 void __init mapphone_sensors_init(void)
 {
 	mapphone_kxtf9_init();
@@ -1266,7 +1247,7 @@ void __init mapphone_sensors_init(void)
 #ifdef CONFIG_SENSORS_AIRC
 	mapphone_airc_init();
 #endif
-	platform_add_devices(mapphone_sensors, ARRAY_SIZE(mapphone_sensors));
+	platform_device_register(&omap3430_hall_effect_dock);
 
 	linear_vib_only = 0;
 	if (mapphone_lvibrator_devtree()) {

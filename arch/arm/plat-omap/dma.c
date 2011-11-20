@@ -430,8 +430,17 @@ void omap_set_dma_src_params(int lch, int src_port, int src_amode,
 		dma_write((u16)src_start, CSSA_L(lch));
 	}
 
-	if (cpu_class_is_omap2())
+	if (cpu_class_is_omap2()) {
 		dma_write(src_start, CSSA(lch));
+
+		/* try to enable burst & packed mode */
+		l = dma_read(CSDP(lch));
+		l |= OMAP_DMA_DATA_BURST_16 << 7;
+		if (src_amode == OMAP_DMA_AMODE_POST_INC)
+			l |= 1 << 6;
+		dma_write(l, CSDP(lch));
+	}
+
 
 	dma_write(src_ei, CSEI(lch));
 	dma_write(src_fi, CSFI(lch));
@@ -546,8 +555,16 @@ void omap_set_dma_dest_params(int lch, int dest_port, int dest_amode,
 		dma_write(dest_start, CDSA_L(lch));
 	}
 
-	if (cpu_class_is_omap2())
+	if (cpu_class_is_omap2()) {
 		dma_write(dest_start, CDSA(lch));
+
+		/* try to enable burst & packed mode */
+		l = dma_read(CSDP(lch));
+		l |= OMAP_DMA_DATA_BURST_16 << 14;
+		if (dest_amode == OMAP_DMA_AMODE_POST_INC)
+			l |= 1 << 13;
+		dma_write(l, CSDP(lch));
+	}
 
 	dma_write(dst_ei, CDEI(lch));
 	dma_write(dst_fi, CDFI(lch));

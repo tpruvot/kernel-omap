@@ -17,7 +17,6 @@
 #include <linux/regulator/driver.h>
 #include <linux/regulator/machine.h>
 #include <linux/spi/cpcap.h>
-#include <linux/leds-ld-cpcap.h>
 #include <linux/spi/spi.h>
 #include <plat/mcspi.h>
 #include <plat/gpio.h>
@@ -593,8 +592,6 @@ static void cpcap_spi_init(void *p_data)
 	}
 }
 
-int mapphone_umts_model;
-
 static void __init cpcap_of_init(void)
 {
 	int size, unit_size, i, count;
@@ -613,10 +610,8 @@ static void __init cpcap_of_init(void)
 		of_node_put(bp_node);
 	}
 
-	if (strcmp(cpcap_bp_model, "UMTS") >= 0) {
+	if (strcmp(cpcap_bp_model, "UMTS") >= 0)
 		mapphone_cpcap_data.is_umts = 1;
-		mapphone_umts_model = 1;
-	}
 
 	node = of_find_node_by_path(DT_PATH_CPCAP);
 	if (node == NULL) {

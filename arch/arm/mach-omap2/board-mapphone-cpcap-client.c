@@ -13,17 +13,18 @@
 #include <linux/irq.h>
 #include <linux/platform_device.h>
 #include <linux/spi/cpcap.h>
-#include <linux/leds-ld-cpcap.h>
-#include <linux/leds-ld-cpcap-disp.h>
-#include <linux/leds-cpcap-kpad.h>
-#include <linux/leds-cpcap-display.h>
-#include <linux/leds-cpcap-button.h>
 #include <linux/cpcap_audio_platform_data.h>
 #include <linux/pm_dbg.h>
 #include <mach/gpio.h>
 #include <plat/mux.h>
 #include <plat/resource.h>
 #include <plat/omap34xx.h>
+#include <linux/leds-cpcap-abmode.h>
+#include <linux/leds-cpcap-adb.h>
+#include <linux/leds-cpcap-gpio.h>
+#include <linux/leds-cpcap-kpb.h>
+#include <linux/leds-cpcap-mdb.h>
+#include <linux/leds-cpcap-rgb.h>
 
 #ifdef CONFIG_ARM_OF
 #include <mach/dt_path.h>
@@ -68,27 +69,11 @@ static struct platform_device cpcap_tta_det_device = {
 #endif
 
 
-static struct platform_device cpcap_rgb_led = {
-	.name           = LD_MSG_IND_DEV,
-	.id             = -1,
-	.dev.platform_data  = NULL,
-};
-
 #ifdef CONFIG_SOUND_CPCAP_OMAP
 static struct platform_device cpcap_audio_device = {
 	.name           = "cpcap_audio",
 	.id             = -1,
 	.dev.platform_data  = NULL,
-};
-#endif
-
-#ifdef CONFIG_LEDS_AF_LED
-static struct platform_device cpcap_af_led = {
-	.name           = LD_AF_LED_DEV,
-	.id             = -1,
-	.dev            = {
-		.platform_data  = NULL,
-       },
 };
 #endif
 
@@ -145,48 +130,6 @@ static struct platform_device *cpcap_devices[] = {
  * CPCAP devcies whose availability depends on HW
  *
  */
-static struct platform_device  cpcap_kpad_led = {
-	.name           = CPCAP_KPAD_DEV,
-	.id             = -1,
-	.dev            = {
-	.platform_data  = NULL,
-	},
-};
-
-static struct platform_device ld_cpcap_kpad_led = {
-	.name           = LD_KPAD_DEV,
-	.id             = -1,
-	.dev            = {
-		.platform_data  = NULL,
-	},
-};
-
-static struct platform_device cpcap_button_led = {
-	.name           = CPCAP_BUTTON_DEV,
-	.id             = -1,
-	.dev            = {
-	.platform_data  = NULL,
-	},
-};
-
-static struct disp_button_config_data btn_data;
-
-static struct platform_device ld_cpcap_disp_button_led = {
-	.name           = LD_DISP_BUTTON_DEV,
-	.id             = -1,
-	.dev            = {
-	.platform_data  = &btn_data,
-	},
-};
-
-static struct platform_device cpcap_display_led = {
-	.name           = CPCAP_DISPLAY_DRV,
-	.id             = -1,
-	.dev            = {
-		.platform_data  = NULL,
-	},
-};
-
 static struct platform_device cpcap_lm3554 = {
 	.name           = "flash-torch",
 	.id             = -1,
@@ -203,235 +146,87 @@ static struct platform_device cpcap_lm3559 = {
 	},
 };
 
+static struct cpcap_abmode_config_data abmode_config_data = {
+	.abmode_init = CPCAP_ABMODE_INIT,
+};
+
+static struct cpcap_adb_led_config_data adb_led_data = {
+	.init = CPCAP_ADB_INIT,
+	.on = CPCAP_ADB_ON,
+	.abmode_config = &abmode_config_data,
+	.class_name = CPCAP_ADB_LED_CLASS_NAME,
+};
+
+static struct platform_device cpcap_adb_led = {
+	.name = CPCAP_ADB_LED_DRV_NAME,
+	.id   = -1,
+	.dev  = {
+		.platform_data  = &adb_led_data,
+	},
+};
+
+static struct cpcap_gpio_led_config_data gpio_led_data = {
+	.reg = CPCAP_REG_GPIO6,
+	.init_mask = CPCAP_GPIO_INIT_MASK,
+	.init = CPCAP_GPIO_INIT,
+	.class_name = CPCAP_GPIO_LED_CLASS_NAME,
+};
+
+static struct platform_device cpcap_gpio_led = {
+	.name = CPCAP_GPIO_LED_DRV_NAME,
+	.id   = -1,
+	.dev  = {
+		.platform_data  = &gpio_led_data,
+	},
+};
+
+static struct cpcap_kpb_led_config_data kpb_led_data = {
+	.init = CPCAP_KPB_INIT,
+	.on = CPCAP_KPB_ON,
+	.class_name = CPCAP_KPB_LED_CLASS_NAME,
+};
+
+static struct platform_device cpcap_kpb_led = {
+	.name = CPCAP_KPB_LED_DRV_NAME,
+	.id   = -1,
+	.dev  = {
+		.platform_data = &kpb_led_data,
+	},
+};
+
+static struct cpcap_mdb_led_config_data mdb_led_data = {
+	.init = CPCAP_MDB_INIT,
+	.abmode_config = &abmode_config_data,
+	.class_name = CPCAP_MDB_LED_CLASS_NAME,
+};
+
+static struct platform_device cpcap_mdb_led = {
+	.name = CPCAP_MDB_LED_DRV_NAME,
+	.id   = -1,
+	.dev  = {
+		.platform_data  = &mdb_led_data,
+	},
+};
+
+static struct cpcap_rgb_led_config_data rgb_led_data = {
+	.red_enable = true,
+	.green_enable = true,
+	.blue_enable = true,
+	.blink_enable = true,
+	.class_name_red = CPCAP_RGB_LED_RED_CLASS_NAME,
+	.class_name_green = CPCAP_RGB_LED_GREEN_CLASS_NAME,
+	.class_name_blue = CPCAP_RGB_LED_BLUE_CLASS_NAME,
+};
+
+static struct platform_device cpcap_rgb_led = {
+	.name = CPCAP_RGB_LED_DRV_NAME,
+	.id   = -1,
+	.dev  = {
+	.platform_data  = &rgb_led_data,
+	},
+};
+
 #ifdef CONFIG_ARM_OF
-static int __init is_ld_cpcap_kpad_on(void)
-{
-	u8 device_available;
-	struct device_node *node;
-	const void *prop;
-
-	node = of_find_node_by_path(DT_KPAD_LED);
-	if (node == NULL) {
-		pr_err("Unable to read node %s from device tree!\n",
-			DT_KPAD_LED);
-		return -ENODEV;
-	}
-
-	prop = of_get_property(node, "tablet_kpad_led", NULL);
-	if (prop)
-		device_available = *(u8 *)prop;
-	else {
-		pr_err("Read property %s error!\n", DT_PROP_TABLET_KPAD_LED);
-			of_node_put(node);
-		return -ENODEV;
-	}
-
-	of_node_put(node);
-	return device_available;
-}
-
-static int __init is_cpcap_kpad_on(void)
-{
-	u8 device_available;
-	struct device_node *node;
-	const void *prop;
-
-	node = of_find_node_by_path(DT_KPAD_LED);
-	if (node == NULL) {
-		pr_err("Unable to read node %s from device tree!\n",
-			DT_KPAD_LED);
-		return -ENODEV;
-	}
-
-	prop = of_get_property(node, "ruth_kpad_led", NULL);
-	if (prop)
-		device_available = *(u8 *)prop;
-	else {
-		pr_err("Read property %s error!\n", DT_PROP_RUTH_KPAD_LED);
-		of_node_put(node);
-		return -ENODEV;
-	}
-
-	of_node_put(node);
-	return device_available;
-}
-
-static int __init cpcap_button_init(void)
-{
-	u8 device_available;
-	struct device_node *node;
-	const void *prop;
-
-	node = of_find_node_by_path(DT_HOME_LED);
-	if (node == NULL) {
-		pr_err("Unable to read node %s from device tree!\n",
-			DT_HOME_LED);
-		return -ENODEV;
-}
-
-	prop = of_get_property(node, "ruth_button_led", NULL);
-	if (prop)
-		device_available = *(u8 *)prop;
-	else {
-		pr_err("Read property %s error!\n", DT_PROP_RUTH_BUTTON);
-			of_node_put(node);
-		return -ENODEV;
-	}
-
-	of_node_put(node);
-	return device_available;
-}
-
-static int __init ld_cpcap_disp_button_init(void)
-{
-	struct device_node *node;
-	const void *prop;
-	struct disp_button_config_data *pbtn_data = &btn_data;
-	u8 device_available, ret;
-
-	ret = -ENODEV;
-
-	node = of_find_node_by_path(DT_HOME_LED);
-	if (node == NULL) {
-		pr_err("Unable to read node %s from device tree!\n",
-							DT_HOME_LED);
-		goto err;
-	}
-
-	prop = of_get_property(node, "tablet_button_led", NULL);
-	if (prop)
-		device_available = *(u8 *)prop;
-	else {
-		pr_err("Read property %s error!\n", DT_PROP_TABLET_BUTTON);
-		goto err;
-	}
-	/*
-	 * Hard Keys do not light
-	 * making it difficult to see in low/no light
-	 */
-	if (device_available <= 0) {
-		pr_err("Tablet button led device not present: %d\n",
-							device_available);
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_duty_cycle", NULL);
-	if (prop)
-		pbtn_data->duty_cycle = *(u16 *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_duty_cycle");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_cpcap_mask", NULL);
-	if (prop)
-		pbtn_data->cpcap_mask = *(u16 *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_cpcap_mask");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_current", NULL);
-	if (prop)
-		pbtn_data->led_current = *(u8 *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_current");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_register", NULL);
-	if (prop)
-		pbtn_data->reg = *(enum cpcap_reg *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_register");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_register2", NULL);
-	if (prop == NULL) {
-		pr_err("Read property %s error!\n", "button_register2");
-		pbtn_data->reg2 = 0;
-
-		/* NOTE: Fail to read reg2 NOT mean everything wrong*/
-		goto done;
-	}
-
-	pbtn_data->reg2 = *(enum cpcap_reg *)prop;
-	prop = of_get_property(node, "button_cpcap_abmode_mask", NULL);
-	if (prop)
-		pbtn_data->abmode_cpcap_mask = *(u16 *)prop;
-	else {
-		pr_err("Read property %s error!\n",
-				"button_cpcap_abmode_mask");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_pwm", NULL);
-	if (prop)
-		pbtn_data->pwm = *(u16 *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_pwm");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_fade_time", NULL);
-	if (prop)
-		pbtn_data->fade_time = *(u16 *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_fade_time");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_fade_en", NULL);
-	if (prop)
-		pbtn_data->fade_en = *(u16 *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_fade_time");
-		goto err;
-	}
-
-	prop = of_get_property(node, "button_abmode", NULL);
-	if (prop)
-		pbtn_data->abmode = *(u16 *)prop;
-	else {
-		pr_err("Read property %s error!\n", "button_abmode");
-		goto err;
-	}
-
-done:
-	ret = 1;
-err:
-	if (node != NULL)
-		of_node_put(node);
-	return ret;
-}
-
-static int __init is_disp_led_on(void)
-{
-	u8 device_available;
-	struct device_node *node;
-	const void *prop;
-
-	node = of_find_node_by_path(DT_BACKLIGHT);
-	if (node == NULL) {
-		pr_err("Unable to read node %s from device tree!\n",
-			DT_BACKLIGHT);
-		return -ENODEV;
-	}
-
-	prop = of_get_property(node, "ruth_lcd", NULL);
-	if (prop)
-		device_available = *(u8 *)prop;
-	else {
-		pr_err("Read property %s error!\n", DT_PROP_RUTH_LCD);
-			of_node_put(node);
-		return -ENODEV;
-	}
-
-	of_node_put(node);
-	return device_available;
-}
-
 static int __init led_cpcap_lm3554_init(void)
 {
 	u8 device_available;
@@ -470,32 +265,6 @@ static int __init led_cpcap_lm3559_init(void)
 		device_available = *(u8 *)prop;
 	else {
 		pr_err("Read property %s error!\n", "device_available");
-		of_node_put(node);
-		return -ENODEV;
-	}
-
-	of_node_put(node);
-	return device_available;
-}
-
-static int __init is_ld_cpcap_rgb_on(void)
-{
-	u8 device_available;
-	struct device_node *node;
-	const void *prop;
-
-	node = of_find_node_by_path(DT_NOTIFICATION_LED);
-	if (node == NULL) {
-		pr_err("Unable to read node %s from device tree!\n",
-			DT_NOTIFICATION_LED);
-		return -ENODEV;
-	}
-
-	prop = of_get_property(node, "tablet_rgb_led", NULL);
-	if (prop)
-		device_available = *(u8 *)prop;
-	else {
-		pr_err("Read property %s error!\n", DT_PROP_TABLET_RGB_LED);
 		of_node_put(node);
 		return -ENODEV;
 	}
@@ -572,24 +341,261 @@ static void get_cpcap_audio_data(void)
 		pr_err("Read property %s error!\n",
 			DT_PROP_AUDIO_I2S_BP);
 	}
-
-	prop = of_get_property(node, DT_PROP_AUDIO_MB_BIAS, NULL);
-	if (prop) {
-		/* MB_BIAS_R[1:0]
-		::: 00 : 0Ohm / 01 : 2.2KOhm
-		::: 10 : 4.7KOhm / 11 : invalid state */
-		data.mb_bias = *(int *)prop;
-		if (data.mb_bias < 0 || data.mb_bias > 2)
-			data.mb_bias = 0;
-	} else {
-		data.mb_bias = 0;
-		pr_err("Read property %s error!\n",
-			DT_PROP_AUDIO_MB_BIAS);
-	}
-
 	of_node_put(node);
 }
 #endif
+
+static int cpcap_abmode_led_init(struct device_node *node)
+{
+	const void *prop;
+	int len = 0;
+
+	if (node == NULL)
+		return -ENODEV;
+
+	prop = of_get_property(node, "init", &len);
+	if (prop && len)
+		abmode_config_data.abmode_init = *(u16 *)prop;
+
+	return 0;
+}
+
+static int cpcap_adb_led_init(struct device_node *node)
+{
+	const void *prop;
+	int len = 0;
+
+	if (node == NULL)
+		return -ENODEV;
+
+	prop = of_get_property(node, "init", &len);
+	if (prop && len)
+		adb_led_data.init = *(u16 *)prop;
+
+	prop = of_get_property(node, "on", &len);
+	if (prop && len)
+		adb_led_data.on = *(u16 *)prop;
+
+	prop = of_get_property(node, "dev_name", &len);
+	if (prop && len) {
+		strncpy(adb_led_data.class_name, (char *)prop,
+			sizeof(adb_led_data.class_name) - 1);
+		adb_led_data.class_name[sizeof(adb_led_data.class_name) - 1]
+			= '\0';
+	}
+
+	cpcap_device_register(&cpcap_adb_led);
+
+	return 0;
+}
+
+static int cpcap_gpio_led_init(struct device_node *node)
+{
+	const void *prop;
+	int len = 0;
+
+	if (node == NULL)
+		return -ENODEV;
+
+	prop = of_get_property(node, "reg", &len);
+	if (prop && len)
+		gpio_led_data.reg = *(u32 *)prop;
+
+	prop = of_get_property(node, "init_mask", &len);
+	if (prop && len)
+		gpio_led_data.init_mask = *(u16 *)prop;
+
+	prop = of_get_property(node, "init", &len);
+	if (prop && len)
+		gpio_led_data.init = *(u16 *)prop;
+
+	prop = of_get_property(node, "dev_name", &len);
+	if (prop && len) {
+		strncpy(gpio_led_data.class_name, (char *)prop,
+			sizeof(gpio_led_data.class_name) - 1);
+		gpio_led_data.class_name[sizeof(gpio_led_data.class_name) - 1]
+			= '\0';
+	}
+
+	cpcap_device_register(&cpcap_gpio_led);
+
+	return 0;
+}
+
+static int cpcap_kpb_led_init(struct device_node *node)
+{
+	const void *prop;
+	int len = 0;
+
+	if (node == NULL)
+		return -ENODEV;
+
+	prop = of_get_property(node, "init", &len);
+	if (prop && len)
+		kpb_led_data.init = *(u16 *)prop;
+
+	prop = of_get_property(node, "on", &len);
+	if (prop && len)
+		kpb_led_data.on = *(u16 *)prop;
+
+	prop = of_get_property(node, "dev_name", &len);
+	if (prop && len) {
+		strncpy(kpb_led_data.class_name, (char *)prop,
+			sizeof(kpb_led_data.class_name) - 1);
+		kpb_led_data.class_name[sizeof(kpb_led_data.class_name) - 1]
+			= '\0';
+	}
+
+	cpcap_device_register(&cpcap_kpb_led);
+
+	return 0;
+}
+
+static int cpcap_mdb_led_init(struct device_node *node)
+{
+	const void *prop;
+	int len = 0;
+
+	if (node == NULL)
+		return -ENODEV;
+
+	prop = of_get_property(node, "init", &len);
+	if (prop && len)
+		mdb_led_data.init = *(u16 *)prop;
+
+	prop = of_get_property(node, "dev_name", &len);
+	if (prop && len) {
+		strncpy(mdb_led_data.class_name, (char *)prop,
+			sizeof(mdb_led_data.class_name) - 1);
+		mdb_led_data.class_name[sizeof(mdb_led_data.class_name) - 1]
+			= '\0';
+	}
+
+	cpcap_device_register(&cpcap_mdb_led);
+
+	return 0;
+}
+
+static int cpcap_rgb_led_init(struct device_node *node)
+{
+	const void *prop;
+	int len = 0;
+
+	if (node == NULL)
+		return -ENODEV;
+
+	prop = of_get_property(node, "enable_red", &len);
+	if (prop && len)
+		rgb_led_data.red_enable = *(u8 *)prop;
+
+	prop = of_get_property(node, "enable_green", &len);
+	if (prop && len)
+		rgb_led_data.green_enable = *(u8 *)prop;
+
+	prop = of_get_property(node, "enable_blue", &len);
+	if (prop && len)
+		rgb_led_data.blue_enable = *(u8 *)prop;
+
+	prop = of_get_property(node, "enable_blink", &len);
+	if (prop && len)
+		rgb_led_data.blink_enable = *(u8 *)prop;
+
+	prop = of_get_property(node, "dev_name_red", &len);
+	if (prop && len) {
+		strncpy(rgb_led_data.class_name_red, (char *)prop,
+			sizeof(rgb_led_data.class_name_red) - 1);
+		rgb_led_data.class_name_red[
+			sizeof(rgb_led_data.class_name_red) - 1]
+			= '\0';
+	}
+
+	prop = of_get_property(node, "dev_name_green", &len);
+	if (prop && len) {
+		strncpy(rgb_led_data.class_name_green, (char *)prop,
+			sizeof(rgb_led_data.class_name_green) - 1);
+		rgb_led_data.class_name_green[
+			sizeof(rgb_led_data.class_name_green) - 1]
+			= '\0';
+	}
+
+	prop = of_get_property(node, "dev_name_blue", &len);
+	if (prop && len) {
+		strncpy(rgb_led_data.class_name_blue, (char *)prop,
+			sizeof(rgb_led_data.class_name_blue) - 1);
+		rgb_led_data.class_name_blue[
+			sizeof(rgb_led_data.class_name_blue) - 1]
+			= '\0';
+	}
+
+	cpcap_device_register(&cpcap_rgb_led);
+
+	return 0;
+}
+
+static void cpcap_leds_init(void)
+{
+	struct device_node *node;
+	const void *prop;
+	int len = 0;
+
+	pr_info("%s Configuring CPCAP LED drivers\n", __func__);
+
+	/* The ABMODE settings are neeeded before the ADB */
+	/* and MDB drivers load */
+	node = of_find_node_by_name(NULL, "LEDController");
+	while (node) {
+		prop = of_get_property(node, "type", &len);
+		if (prop && len && (*(int *)prop == 0x00210000)) {
+			pr_info("CPCAP,ABMODE found.\n");
+			cpcap_abmode_led_init(node);
+			of_node_put(node);
+			break;
+		}
+
+		node = of_find_node_by_name(node, "LEDController");
+	}
+
+	node = of_find_node_by_name(NULL, "LEDController");
+	while (node) {
+		pr_info("CPCAP LED found.\n");
+
+		prop = of_get_property(node, "type", &len);
+		if (prop && len) {
+			pr_info("type = 0X%8X\n", *(int *)prop);
+
+			switch (*(int *)prop) {
+			case 0x00210000:
+				break;
+			case 0x00210001:
+				pr_info("CPCAP,ADB found.\n");
+				cpcap_adb_led_init(node);
+				break;
+			case 0x00210002:
+				pr_info("CPCAP,GPIO found.\n");
+				cpcap_gpio_led_init(node);
+				break;
+			case 0x00210003:
+				pr_info("CPCAP,KPB found.\n");
+				cpcap_kpb_led_init(node);
+				break;
+			case 0x00210004:
+				pr_info("CPCAP,MDB found.\n");
+				cpcap_mdb_led_init(node);
+				break;
+			case 0x00210005:
+				pr_info("CPCAP,RGB found.\n");
+				cpcap_rgb_led_init(node);
+				break;
+			default:
+				pr_err("Unknown CPCAP LED device 0x%8x.\n",
+					*(int *)prop);
+				break;
+			}
+		}
+
+		node = of_find_node_by_name(node, "LEDController");
+	}
+}
 
 #ifdef CONFIG_PM_DBG_DRV
 static void get_pm_dbg_drvdata(void)
@@ -623,29 +629,13 @@ void __init mapphone_cpcap_client_init(void)
 	for (i = 0; i < ARRAY_SIZE(cpcap_devices); i++)
 		cpcap_device_register(cpcap_devices[i]);
 
-	if (is_cpcap_kpad_on() > 0)
-		cpcap_device_register(&cpcap_kpad_led);
-
-	if (is_ld_cpcap_kpad_on() > 0)
-		cpcap_device_register(&ld_cpcap_kpad_led);
-
-	if (ld_cpcap_disp_button_init() > 0)
-		cpcap_device_register(&ld_cpcap_disp_button_led);
-
-	if (cpcap_button_init() > 0)
-		cpcap_device_register(&cpcap_button_led);
-
-	if (is_disp_led_on() > 0)
-		cpcap_device_register(&cpcap_display_led);
+	cpcap_leds_init();
 
 	if (led_cpcap_lm3554_init() > 0)
 		cpcap_device_register(&cpcap_lm3554);
 
 	if (led_cpcap_lm3559_init() > 0)
 		cpcap_device_register(&cpcap_lm3559);
-
-	if (is_ld_cpcap_rgb_on() > 0)
-		cpcap_device_register(&cpcap_rgb_led);
 
 	if (!is_cpcap_vio_supply_converter())
 		cpcap_device_register(&cpcap_vio_active_device);

@@ -40,6 +40,8 @@ ret_fast_syscall:
  * Ok, we need to do extra processing, enter the slow path.
  */
 fast_work_pending:
+	tst	r1, #_TIF_KERNEL_TRACE		@ flag can be set asynchronously
+	bne	__sys_trace_return
 	str	r0, [sp, #S_R0+S_OFF]!		@ returned r0
 work_pending:
 	tst	r1, #_TIF_NEED_RESCHED
@@ -77,8 +79,8 @@ ENTRY(ret_from_fork)
 	get_thread_info tsk
 	ldr	r1, [tsk, #TI_FLAGS]		@ check for syscall tracing
 	mov	why, #1
-	tst	r1, #_TIF_SYSCALL_TRACE		@ are we tracing syscalls?
-	beq	ret_slow_syscall
+	tst	r1, #_TIF_SYSCALL_TRACE | _TIF_KERNEL_TRACE
+	beq	ret_slow_syscall		@ are we tracing syscalls?
 	mov	r1, sp
 	mov	r0, #1				@ trace exit [IP = 1]
 	bl	syscall_trace
@@ -93,22 +95,35 @@ ENDPROC(ret_from_fork)
 
 #ifdef CONFIG_FUNCTION_TRACER
 #ifdef CONFIG_DYNAMIC_FTRACE
-ENTRY(mcount)
-	stmdb sp!, {r0-r3, lr}
-	mov r0, lr
-	sub r0, r0, #MCOUNT_INSN_SIZE
+ENTRY(__gnu_mcount_nc)
+	mov ip, lr
+	 ldm sp!, {lr}
+	 mov pc, ip
 
-	.globl mcount_call
-mcount_call:
-	bl ftrace_stub
-	ldr lr, [fp, #-4]			@ restore lr
-	ldmia sp!, {r0-r3, pc}
+ENTRY(mcount)
+	stmdb sp!, {lr}
+	ldr lr, [fp, #-4]
+	ldmia sp!, {pc}
+
+ENTRY(ftrace_caller_gnu)
+	add sp, sp, #4
+	/*
+	* We take advantage of the fact that we build with frame pointers and
+	* -mapcs-frame to combine the ftrace_caller implementations for the
+	* two mcounts with just the above adjustment. This will need to be
+	* revisited if Thumb-2 support is added.
+	*/
 
 ENTRY(ftrace_caller)
 	stmdb sp!, {r0-r3, lr}
 	ldr r1, [fp, #-4]
 	mov r0, lr
 	sub r0, r0, #MCOUNT_INSN_SIZE
+
+#ifdef CONFIG_FUNCTION_GRAPH_TRACER
+	@ FIXTHIS - DYNAMIC_FTRACE does not support function graph tracing
+	@ when the dynamic work is revived, this should be supported as well
+#endif
 
 	.globl ftrace_call
 ftrace_call:
@@ -125,8 +140,16 @@ ENTRY(__gnu_mcount_nc)
 	adr r0, ftrace_stub
 	cmp r0, r2
 	bne gnu_trace
+
+#ifdef CONFIG_FUNCTION_GRAPH_TRACER
+	ldr r1, =ftrace_graph_return
+	ldr r2, [r1]
+	cmp r0, r2		@ if *ftrace_graph_return != ftrace_stub
+	bne gnu_ftrace_graph_caller
+#endif /* CONFIG_FUNCTION_GRAPH_TRACER */
+
 	ldmia sp!, {r0-r3, ip, lr}
-	mov pc, ip
+	bx ip
 
 gnu_trace:
 	ldr r1, [sp, #20]			@ lr of instrumented routine
@@ -135,7 +158,7 @@ gnu_trace:
 	mov lr, pc
 	mov pc, r2
 	ldmia sp!, {r0-r3, ip, lr}
-	mov pc, ip
+	bx ip
 
 ENTRY(mcount)
 	stmdb sp!, {r0-r3, lr}
@@ -144,8 +167,16 @@ ENTRY(mcount)
 	adr r0, ftrace_stub
 	cmp r0, r2
 	bne trace
+
+#ifdef CONFIG_FUNCTION_GRAPH_TRACER
+	ldr r1, =ftrace_graph_return
+	ldr r2, [r1]
+	cmp r0, r2		@ if *ftrace_graph_return != ftrace_stub
+	bne ftrace_graph_caller
+#endif /* CONFIG_FUNCTION_GRAPH_TRACER */
+
 	ldr lr, [fp, #-4]			@ restore lr
-	ldmia sp!, {r0-r3, pc}
+	ldmia sp!, {r0-r3, pc}			@ return doing nothing
 
 trace:
 	ldr r1, [fp, #-4]			@ lr of instrumented routine
@@ -153,8 +184,37 @@ trace:
 	sub r0, r0, #MCOUNT_INSN_SIZE
 	mov lr, pc
 	mov pc, r2
-	ldr lr, [fp, #-4]			@ restore lr
+	mov lr, r1			@ restore lr
 	ldmia sp!, {r0-r3, pc}
+
+#ifdef CONFIG_FUNCTION_GRAPH_TRACER
+ENTRY(ftrace_graph_caller)
+	sub r0, fp, #4			@ &lr of instrumented routine (&parent)
+	mov r1, lr			@ instrumented routine (func)
+	sub r1, r1, #MCOUNT_INSN_SIZE
+	mov r2, fp			@ frame pointer
+	bl prepare_ftrace_return
+	ldr lr, [fp, #-4]		@ restore lr
+	ldmia sp!, {r0-r3, pc}
+
+	.globl return_to_handler
+return_to_handler:
+	stmdb sp!, {r0-r3}
+	mov r0, fp			@ frame pointer
+	bl ftrace_return_to_handler
+	mov lr, r0			@ r0 has real ret addr
+	ldmia sp!, {r0-r3}
+	mov pc, lr
+
+ENTRY(gnu_ftrace_graph_caller)
+	sub r0, fp, #4	@ &lr of instrumented routine (&parent)
+	sub r1, lr, #MCOUNT_INSN_SIZE	@ instrumented routine (func)
+	mov r2, fp          @ frame pointer
+	bl prepare_ftrace_return
+	ldmia sp!, {r0-r3, ip, lr}
+	bx ip
+
+#endif /* CONFIG_FUNCTION_GRAPH_TRACER */
 
 #endif /* CONFIG_DYNAMIC_FTRACE */
 
@@ -275,8 +335,8 @@ ENTRY(vector_swi)
 #endif
 
 	stmdb	sp!, {r4, r5}			@ push fifth and sixth args
-	tst	ip, #_TIF_SYSCALL_TRACE		@ are we tracing syscalls?
-	bne	__sys_trace
+	tst	ip, #_TIF_SYSCALL_TRACE | _TIF_KERNEL_TRACE
+	bne	__sys_trace			@ are we tracing syscalls?
 
 	cmp	scno, #NR_syscalls		@ check upper syscall limit
 	adr	lr, BSYM(ret_fast_syscall)	@ return address

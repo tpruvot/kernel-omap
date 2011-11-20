@@ -137,4 +137,8 @@ config OMAP_SECURE_FIQ_HACK
 	  watchdog reset on OMAP3. It doesn't bring harm to anything,
 	  but don't enable it unless you really know what it is.
 
+config DEBUG_TRACE_CLOCK
+	bool "Debug trace clock"
+	depends on HAVE_TRACE_CLOCK
+
 endmenu

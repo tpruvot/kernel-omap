@@ -97,6 +97,9 @@ static char *usb_functions_all[] = {
 #endif
 	"usb_mass_storage",
 	"adb",
+#ifdef CONFIG_USB_SERIAL_VIATELECOM_CBP
+	"ets",
+#endif
 };
 
 #ifdef CONFIG_USB_MOT_ANDROID
@@ -200,6 +203,7 @@ static struct usb_mass_storage_platform_data usbms_plat = {
 	.product		= "A853",
 	.release		= 1,
 	.nluns			= 1,
+	.cdrom_lun_num		= 1,
 };
 
 static struct platform_device usb_mass_storage_device = {
@@ -310,6 +314,27 @@ void __init usb_pid_mapping_init(void)
 	printk(KERN_INFO "DT overwrite of  USB PID's done!\n");
 }
 
+void mapphone_init_cdrom_lun_num(void)
+{
+	struct device_node *node;
+	const void *prop;
+
+	node = of_find_node_by_path(DT_PATH_CHOSEN);
+	if (node == NULL) {
+		pr_err("Unable to read node %s from device tree!\n",
+			DT_PATH_CHOSEN);
+		 return;
+	}
+	prop = of_get_property(node, DT_PROP_CHOSEN_USB_CDROM_LUN_NUM, NULL);
+	if (prop) {
+		pr_err("USB Overwrite nLuns %d\n", *(char *)prop);
+		usbms_plat.cdrom_lun_num = *(char *)prop;
+	}
+
+	of_node_put(node);
+	return;
+}
+
 void mapphone_init_nluns(void)
 {
 	struct device_node *node;
@@ -393,6 +418,7 @@ void mapphone_gadget_init(void)
 	mapphone_get_product_name();
 	/* Initialize the USB nluns from device tree */
 	mapphone_init_nluns();
+	mapphone_init_cdrom_lun_num();
 	/* Initialize the USB PID's from the device tree */
 	usb_pid_mapping_init();
 #endif
@@ -534,6 +560,21 @@ static struct resource ohci_resources[] = {
 
 static u64 ohci_dmamask = ~(u32)0;
 
+#ifdef CONFIG_USB_SERIAL_VIATELECOM_CBP
+static struct omap_usb_config dummy_usb_config_via = {
+       .port_data = {
+		{
+			.flags = EHCI_HCD_OMAP_FLAG_ENABLED |
+			EHCI_HCD_OMAP_FLAG_AUTOIDLE |
+			EHCI_HCD_OMAP_FLAG_NOBITSTUFF,
+			.mode = EHCI_HCD_OMAP_MODE_UTMI_TLL_2PIN,
+		},
+		{ .flags = 0x0, }, /* disabled */
+		{ .flags = 0x0, }, /* disabled */
+	},
+};
+#endif
+
 static struct omap_usb_config dummy_usb_config = {
 	.port_data = {
 		{ .flags = 0x0, }, /* disabled */
@@ -548,7 +589,7 @@ static struct omap_usb_config dummy_usb_config = {
 			.suspend = mapphone_usb_port_suspend,
 		},
 	},
-	.usbhost_standby_status	= omap_usbhost_bus_check_ctrl_standby,
+	.usbhost_standby_status = omap_usbhost_bus_check_ctrl_standby,
 	.usb_remote_wake_gpio = MAPPHONE_BP_READY2_AP_GPIO,
 };
 
@@ -608,6 +649,12 @@ void __init mapphone_ehci_init(void)
 	omap_cfg_reg(AC1_3430_USB3FS_PHY_MM3_TXEN_N);
 	omap_cfg_reg(AE1_3430_USB3FS_PHY_MM3_TXSE0);
 
+#ifdef CONFIG_USB_SERIAL_VIATELECOM_CBP
+	if (mapphone_bp_get_type() == MAPPHONE_BP_VIACBP71) {
+		printk(KERN_INFO "VIA BP is chosen\n");
+		ohci_device.dev.platform_data  = &dummy_usb_config_via;
+	}
+#endif
 	if (is_cdma_phone())
 		mapphone_init_modem_interface();
 

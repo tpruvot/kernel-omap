@@ -86,6 +86,8 @@ enum omap_dss_device_disp_intf {
 };
 
 struct regulator *display_regulator;
+static bool first_boot;
+
 static int mapphone_panel_enable(struct omap_dss_device *dssdev);
 static void mapphone_panel_disable(struct omap_dss_device *dssdev);
 
@@ -128,24 +130,54 @@ static struct omap_dss_device mapphone_hdtv_device = {
 	.platform_disable = mapphone_panel_disable_hdtv,
 };
 
-static int mapphone_panel_enable(struct omap_dss_device *dssdev)
+static int mapphone_panel_regulator(bool enable)
 {
-	if (!display_regulator) {
-		display_regulator = regulator_get(NULL, "vhvio");
-		if (IS_ERR(display_regulator)) {
-			printk(KERN_ERR "failed to get regulator for display");
-			return PTR_ERR(display_regulator);
+	static int regulator_cnt;
+
+	if (enable) {
+		if (!regulator_cnt) {
+			display_regulator = regulator_get(NULL, "vhvio");
+			if (IS_ERR(display_regulator)) {
+				printk(KERN_ERR "failed to get regulator "
+						"for display \n");
+				return PTR_ERR(display_regulator);
+			}
+
+			regulator_enable(display_regulator);
+			mdelay(1);
 		}
-		regulator_enable(display_regulator);
-		mdelay(10);
-		return 0;
+		regulator_cnt++;
+	} else {
+		if (regulator_cnt != 0) {
+			regulator_cnt--;
+			if (!regulator_cnt)
+				regulator_disable(display_regulator);
+		} else
+			printk(KERN_WARNING "regulatore is reached zero \n");
 	}
 
-	regulator_enable(display_regulator);
-	gpio_set_value(mapphone_lcd_device.reset_gpio, 0);
-	msleep(1);
-	gpio_set_value(mapphone_lcd_device.reset_gpio, 1);
-	msleep(10);
+	return regulator_cnt;
+}
+
+static void mapphone_panel_reset(bool reset)
+{
+	if (reset) {
+		if (!first_boot) {
+			/* don't toggle reset line when the kernel is booting*/
+			gpio_set_value(mapphone_lcd_device.reset_gpio, 0);
+			msleep(5);
+			gpio_set_value(mapphone_lcd_device.reset_gpio, 1);
+			msleep(10);
+		} else
+			first_boot = false;
+	} else
+		gpio_set_value(mapphone_lcd_device.reset_gpio, 0);
+}
+
+static int mapphone_panel_enable(struct omap_dss_device *dssdev)
+{
+	mapphone_panel_regulator(true);
+	mapphone_panel_reset(true);
 
 	return 0;
 }
@@ -157,12 +189,10 @@ static void mapphone_panel_disable(struct omap_dss_device *dssdev)
 	if (dssdev->driver->deep_sleep_mode)
 		deep_sleep_mode_sup = dssdev->driver->deep_sleep_mode(dssdev);
 
-	if (!deep_sleep_mode_sup) {
-		gpio_set_value(mapphone_lcd_device.reset_gpio, 0);
-		msleep(1);
-	}
+	if (!deep_sleep_mode_sup)
+		mapphone_panel_reset(false);
 
-	regulator_disable(display_regulator);
+	mapphone_panel_regulator(false);
 }
 
 static struct omapfb_platform_data mapphone_fb_data = {
@@ -672,6 +702,8 @@ void __init mapphone_panel_init(void)
 		goto error;
 	}
 
+	first_boot = true;
+
 	gpio_direction_output(mapphone_lcd_device.reset_gpio, 1);
 
 	if (mapphone_feature_hdmi) {
@@ -679,7 +711,7 @@ void __init mapphone_panel_init(void)
 							"HDMI-mux-enable");
 		if (ret) {
 			printk(KERN_ERR "Failed hdtv mux en gpio request\n");
-			goto failed_reg_req;
+			goto failed_mux_en;
 		}
 		gpio_direction_output(mapphone_hdtv_mux_en_gpio, 0);
 		gpio_set_value(mapphone_hdtv_mux_en_gpio, 0);
@@ -707,7 +739,7 @@ void __init mapphone_panel_init(void)
 
 failed_mux_sel:
 	gpio_free(mapphone_hdtv_mux_en_gpio);
-failed_reg_req:
+failed_mux_en:
 	gpio_free(mapphone_lcd_device.reset_gpio);
 error:
 	return;
