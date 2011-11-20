@@ -52,6 +52,10 @@ enum bpgpio {
 	BP_RESOUT,
 	BP_PWRON,
 	AP_TO_BP_PSHOLD,
+	IPC_USB_SUSP,
+	AP_USB_BYPASS,
+	AP_WAKE_BP,
+	BP_WAKE_AP,
 	AP_TO_BP_FLASH_EN,
 	GPIO_COUNT = AP_TO_BP_FLASH_EN + 1,
 };
@@ -62,10 +66,20 @@ struct omap_mdm_ctrl_info {
 	struct clientinfo clients[MAX_CLIENTS];
 	struct semaphore sem;
 	struct workqueue_struct *working_queue;
+	int (*power_off)(void);
+	int (*power_up)(int);
+	int (*reset)(int);
+	unsigned int (*get_bp_status)(void);
+	void (*set_ap_status)(unsigned int);
 };
 
 /* Driver operational structure */
 static struct omap_mdm_ctrl_info omap_mdm_ctrl_data;
+
+static int bp_paniced;
+
+static int qdload;     /* 0 = disable  1=enable */
+module_param_named(enable_bp_coredump, qdload, int, S_IRUGO | S_IWUSR);
 
 /* The detailed wait condition used in omap_mdm_ctrl_read().  Returns 0 only
  * when an irq has fired, otherwise always returns -1. */
@@ -129,6 +143,20 @@ static void irq_work(struct work_struct *work)
 	if (gpio == &omap_mdm_ctrl_data.gpios[BP_RESOUT] &&
 	    gpio_get_value(gpio->gpio) == 0) {
 		pr_err("%s: BP powered off!\n", __func__);
+
+		if (qdload) {
+			bp_paniced = 1;
+			pr_err("%s:USB BYPASS for BP panic \n", __func__);
+			gpio_set_value(omap_mdm_ctrl_data.
+				gpios[AP_USB_BYPASS].gpio, 1);
+
+			pr_err("%s: BP QDLOAD mode = 0x02 \n", __func__);
+			gpio_set_value(omap_mdm_ctrl_data.
+				gpios[AP_WAKE_BP].gpio, 1);
+			gpio_set_value(omap_mdm_ctrl_data.
+				gpios[BP_WAKE_AP].gpio, 0);
+		}
+
 	}
 
 	/* Search through clients, waking those that are waiting on this irq */
@@ -315,6 +343,7 @@ void set_interrupt(struct gpioinfo *gpio, struct clientinfo *cinfo, int enable)
 	}
 }
 
+
 /* Performs the appropriate action for the specified IOCTL command,
  * returning a failure code only if the IOCTL command was not recognized */
 static int omap_mdm_ctrl_ioctl(struct inode *inode, struct file *filp,
@@ -398,6 +427,41 @@ static int omap_mdm_ctrl_ioctl(struct inode *inode, struct file *filp,
 		}
 		break;
 
+	/* high level commands for mdm6600 */
+	case OMAP_MDM_CTRL_IOCTL_BP_RESET:
+		ret = get_user(intParam, dataParam);
+		if (ret == 0)
+			if (omap_mdm_ctrl_data.reset)
+				ret = put_user(
+				omap_mdm_ctrl_data.reset(intParam), dataParam);
+		break;
+
+	case OMAP_MDM_CTRL_IOCTL_GET_BP_STATUS:
+		if (omap_mdm_ctrl_data.get_bp_status)
+			ret = put_user(omap_mdm_ctrl_data.get_bp_status(),
+				dataParam);
+		break;
+
+	case OMAP_MDM_CTRL_IOCTL_SET_AP_STATUS:
+		ret = get_user(intParam, dataParam);
+		if (ret == 0)
+			if (omap_mdm_ctrl_data.set_ap_status)
+				omap_mdm_ctrl_data.set_ap_status(intParam);
+		break;
+
+	case OMAP_MDM_CTRL_IOCTL_BP_SHUTDOWN:
+		if (omap_mdm_ctrl_data.power_off)
+			ret = put_user(omap_mdm_ctrl_data.power_off(),
+				dataParam);
+		break;
+
+	case OMAP_MDM_CTRL_IOCTL_BP_STARTUP:
+		ret = get_user(intParam, dataParam);
+		if ((ret == 0) && omap_mdm_ctrl_data.power_up)
+			ret = put_user(
+			omap_mdm_ctrl_data.power_up(intParam), dataParam);
+		break;
+
 	default:
 		pr_err("%s: Unknown IO control command received. (%d)\n",
 		       __func__, cmd);
@@ -431,6 +495,10 @@ static int __devinit omap_mdm_ctrl_probe(struct platform_device *pdev)
 	int i;
 	struct omap_mdm_ctrl_platform_data *pdata = pdev->dev.platform_data;
 
+       /* default values for d2we bp panic qdload mode */
+	bp_paniced = 0;
+	qdload = 0;
+
 	/* Initialize internal structures */
 	init_MUTEX(&omap_mdm_ctrl_data.sem);
 
@@ -441,6 +509,11 @@ static int __devinit omap_mdm_ctrl_probe(struct platform_device *pdev)
 		init_waitqueue_head(&omap_mdm_ctrl_data.clients[i].wq);
 		omap_mdm_ctrl_data.clients[i].mask = 1 << i;
 	}
+	omap_mdm_ctrl_data.power_off = pdata->power_off;
+	omap_mdm_ctrl_data.power_up = pdata->power_up;
+	omap_mdm_ctrl_data.reset = pdata->reset;
+	omap_mdm_ctrl_data.get_bp_status = pdata->get_bp_status;
+	omap_mdm_ctrl_data.set_ap_status = pdata->set_ap_status;
 
 	/* Init working queue */
 	omap_mdm_ctrl_data.working_queue =
@@ -467,6 +540,19 @@ static int __devinit omap_mdm_ctrl_probe(struct platform_device *pdev)
 	omap_mdm_ctrl_data.gpios[AP_TO_BP_FLASH_EN].gpio =
 	    pdata->ap_to_bp_flash_en_gpio;
 	INIT_WORK(&omap_mdm_ctrl_data.gpios[AP_TO_BP_FLASH_EN].work, irq_work);
+
+	/* for USB bypass */
+	omap_mdm_ctrl_data.gpios[IPC_USB_SUSP].gpio
+			= pdata->ipc_usb_susp_gpio;
+	omap_mdm_ctrl_data.gpios[AP_USB_BYPASS].gpio
+			= pdata->ap_usb_bypass_gpio;
+
+	/* for BOOT_CMD to BP */
+	omap_mdm_ctrl_data.gpios[AP_WAKE_BP].gpio
+			= pdata->ap_wake_bp_gpio;
+	omap_mdm_ctrl_data.gpios[BP_WAKE_AP].gpio
+			= pdata->bp_wake_ap_gpio;
+
 
 	/* Setup all interrupts */
 	omap_mdm_ctrl_data.gpios[BP_RESOUT].irq =
@@ -519,61 +605,31 @@ static int __devexit omap_mdm_ctrl_remove(struct platform_device *pdev)
 	return 0;
 }
 
-/* Attempt to power off the modem */
-static void omap_mdm_ctrl_power_off_modem(void)
-{
-	int i;
-	int pd_failure = 1;
-
-	/* Check to see if the modem is already powered down */
-	if (!gpio_get_value(omap_mdm_ctrl_data.gpios[BP_RESOUT].gpio)) {
-		pr_info("%s: Modem already powered down.\n", __func__);
-		return;
-	}
-
-	/* Disable ability to notify clients of bp reset activity */
-	disable_irq(omap_mdm_ctrl_data.gpios[BP_RESOUT].irq);
-
-	pr_info("%s: Initiate modem power down...\n", __func__);
-	/* Press modem Power Button */
-	gpio_set_value(omap_mdm_ctrl_data.gpios[BP_PWRON].gpio, 1);
-	mdelay(100);
-	gpio_set_value(omap_mdm_ctrl_data.gpios[BP_PWRON].gpio, 0);
-	/* Wait up to 5 seconds for the modem to properly power down */
-	for (i = 0; i < 10; i++) {
-		if (!gpio_get_value(omap_mdm_ctrl_data.gpios[BP_RESOUT].gpio)) {
-			pr_info("%s: Modem power down success.\n", __func__);
-			pd_failure = 0;
-			break;
-		} else
-			mdelay(500);
-	}
-
-	if (pd_failure) {
-		/* Pull power from the modem */
-		pr_info("%s: Modem pd failure.  Pull power.\n", __func__);
-		gpio_set_value(
-			omap_mdm_ctrl_data.gpios[AP_TO_BP_PSHOLD].gpio, 1);
-		mdelay(5);
-		gpio_set_value(
-			omap_mdm_ctrl_data.gpios[AP_TO_BP_PSHOLD].gpio, 0);
-	}
-}
-
 /* Called in the event of a kernel panic */
 static int omap_mdm_ctrl_panic_handler(struct notifier_block *this,
 				       unsigned long event, void *ptr)
 {
 	pr_info("%s: Kernel panic detected, power down modem.\n", __func__);
-	omap_mdm_ctrl_power_off_modem();
+	if (omap_mdm_ctrl_data.power_off)
+		omap_mdm_ctrl_data.power_off();
 	return NOTIFY_DONE;
 }
 
 /* Called in the event the kernel is shutting down */
 static void __devexit omap_mdm_ctrl_shutdown(struct platform_device *pdev)
 {
-	pr_info("%s: Kernel shutdown detected, power down modem.\n", __func__);
-	omap_mdm_ctrl_power_off_modem();
+	if (qdload) {
+		pr_info("%s: ignore shutdown if bp_paniced \n", __func__);
+		if (bp_paniced == 0) {
+			pr_info("%s: Shutdown, pwr down modem.\n", __func__);
+			if (omap_mdm_ctrl_data.power_off)
+				omap_mdm_ctrl_data.power_off();
+		}
+	} else {
+		pr_info("%s: Kernel shutdown, pwr dn modem.\n", __func__);
+		if (omap_mdm_ctrl_data.power_off)
+			omap_mdm_ctrl_data.power_off();
+	}
 }
 
 static struct notifier_block panic_notifier = {

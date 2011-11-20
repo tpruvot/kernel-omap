@@ -48,6 +48,21 @@ static int wl127x_bt_rfkill_set_power(void *data, bool blocked)
 	return 0;
 }
 
+static int wl127x_pwr_ctl_rfkill_set_power(void *data, bool blocked)
+{
+	struct wl127x_rfkill_platform_data *pdata =
+		(struct wl127x_rfkill_platform_data *) data;
+
+	if (blocked) {
+		if (pdata->bt_hw_disable)
+			pdata->bt_hw_disable();
+	} else {
+		if (pdata->bt_hw_enable)
+			pdata->bt_hw_enable();
+	}
+	return 0;
+}
+
 static int wl127x_fm_rfkill_set_power(void *data, bool blocked)
 {
 	int nshutdown_gpio = (int) data;
@@ -63,6 +78,10 @@ static int wl127x_fm_rfkill_set_power(void *data, bool blocked)
 
 static const struct rfkill_ops wl127x_bt_rfkill_ops = {
 	.set_block = wl127x_bt_rfkill_set_power,
+};
+
+static const struct rfkill_ops wl127x_pwr_ctl_rfkill_ops = {
+	.set_block = wl127x_pwr_ctl_rfkill_set_power,
 };
 
 static const struct rfkill_ops wl127x_fm_rfkill_ops = {
@@ -105,6 +124,26 @@ static int wl127x_rfkill_probe(struct platform_device *pdev)
 		rc = rfkill_register(pdata->rfkill[WL127X_BLUETOOTH]);
 		if (unlikely(rc)) {
 			rfkill_destroy(pdata->rfkill[WL127X_BLUETOOTH]);
+			return rc;
+		}
+	}
+
+	if (pdata->pwr_ctl >= 0) {
+		bool default_blocked = true;  /* power off */
+
+		pdata->rfkill[WL127X_PWR_CTL] = rfkill_alloc(
+				"wl127x Power_Control", &pdev->dev,
+				RFKILL_TYPE_PWR_CTL, &wl127x_pwr_ctl_rfkill_ops,
+				(void *)pdata);
+		if (unlikely(!pdata->rfkill[WL127X_PWR_CTL]))
+			return -ENOMEM;
+
+		rfkill_set_states(pdata->rfkill[WL127X_PWR_CTL],
+			default_blocked, false);
+
+		rc = rfkill_register(pdata->rfkill[WL127X_PWR_CTL]);
+		if (unlikely(rc)) {
+			rfkill_destroy(pdata->rfkill[WL127X_PWR_CTL]);
 			return rc;
 		}
 	}
@@ -153,6 +192,11 @@ static int wl127x_rfkill_remove(struct platform_device *pdev)
 		if (pdata->bt_hw_release)
 			pdata->bt_hw_release();
 		gpio_free(pdata->bt_nshutdown_gpio);
+	}
+
+	if (pdata->pwr_ctl >= 0) {
+		rfkill_unregister(pdata->rfkill[WL127X_PWR_CTL]);
+		rfkill_destroy(pdata->rfkill[WL127X_PWR_CTL]);
 	}
 
 	if (pdata->fm_enable_gpio >= 0) {
