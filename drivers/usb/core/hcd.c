@@ -1906,9 +1906,6 @@ irqreturn_t usb_hcd_irq (int irq, void *__hcd)
 		if (!is_cdma_phone()) {
 			clear_ehci_intr(hcd);
 			rc = IRQ_HANDLED;
-		} else {
-			clear_ohci_intr(hcd);
-			rc = IRQ_HANDLED;
 		}
 #endif
 	} else if (hcd->driver->irq(hcd) == IRQ_NONE) {

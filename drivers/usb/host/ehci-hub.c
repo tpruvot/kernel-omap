@@ -113,6 +113,16 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 	int			mask;
 	u32 __iomem		*hostpc_reg = NULL;
 
+	port = HCS_N_PORTS(ehci->hcs_params);
+	while (port--) {
+		u32 __iomem	*reg = &ehci->regs->port_status[port];
+		u32		t1 = ehci_readl(ehci, reg);
+		if (t1 & PORT_RESUME) {
+			LOG_USBHOST_ACTIVITY(aUsbHostDbg, iUsbHostDbg, 0x4D);
+			return -EBUSY;
+		}
+	}
+
 	ehci_dbg(ehci, "suspend root hub\n");
 
 	if (time_before (jiffies, ehci->next_statechange))
@@ -132,9 +142,7 @@ static int ehci_bus_suspend (struct usb_hcd *hcd)
 #endif
 		port = HCS_N_PORTS(ehci->hcs_params);
 		while (port--) {
-			u32 __iomem	*reg = &ehci->regs->port_status[port];
-			u32		t1 = ehci_readl(ehci, reg);
-			if ((t1 & PORT_RESUME) || (ehci->reset_done[port] != 0)) {
+			if (ehci->reset_done[port] != 0) {
 				spin_unlock_irq(&ehci->lock);
 				ehci_dbg(ehci, "suspend failed because "
 						"port %d is resuming\n",
