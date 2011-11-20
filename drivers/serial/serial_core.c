@@ -490,6 +490,7 @@ static void uart_flush_chars(struct tty_struct *tty)
 	uart_start(tty);
 }
 
+extern int mapphone_umts_model;
 static int
 uart_write(struct tty_struct *tty, const unsigned char *buf, int count)
 {
@@ -497,7 +498,7 @@ uart_write(struct tty_struct *tty, const unsigned char *buf, int count)
 	struct uart_port *port;
 	struct circ_buf *circ;
 	unsigned long flags;
-	int c, ret = 0;
+	int c, ret = 0, circ_space;
 
 	/*
 	 * This means you called this function _after_ the port was
@@ -517,6 +518,14 @@ uart_write(struct tty_struct *tty, const unsigned char *buf, int count)
 	spin_lock_irqsave(&port->lock, flags);
 	while (1) {
 		c = CIRC_SPACE_TO_END(circ->head, circ->tail, UART_XMIT_SIZE);
+		circ_space = CIRC_SPACE(circ->head, circ->tail, UART_XMIT_SIZE);
+
+		if ((!mapphone_umts_model) && (count != 0) &&
+			((port->mapbase == 0x4806a000))) {
+			printk(KERN_INFO "%s [TX] count = %d, circ space = %d\n",
+					__func__, count, circ_space);
+		}
+
 		if (count < c)
 			c = count;
 		if (c <= 0)
