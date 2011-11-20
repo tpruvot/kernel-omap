@@ -47,9 +47,10 @@ extern void __init mapphone_gpio_mapping_init(void);
 extern void __init mapphone_camera_init(void);
 extern void __init mapphone_mmcprobe_init(void);
 extern void __init mapphone_cpcap_client_init(void);
-extern int __init mapphone_omap_mdm_ctrl_init(void);
+extern int __init mapphone_mdm_ctrl_init(void);
 extern void __init mapphone_gadget_init(void);
 extern void __init mapphone_ehci_init(void);
+extern int mapphone_bp_get_type(void);
 
 #if defined(CONFIG_VIDEO_MT9P012) || defined(CONFIG_VIDEO_MT9P012_MODULE)
 extern struct mt9p012_platform_data mapphone_mt9p012_platform_data;
@@ -63,10 +64,6 @@ extern struct ov5650_platform_data mapphone_ov5650_platform_data;
 #ifdef CONFIG_VIDEO_OMAP3_HPLENS
 extern struct hplens_platform_data mapphone_hplens_platform_data;
 #endif
-#ifdef CONFIG_VIDEO_CAM_ISE
-extern struct camise_platform_data mapphone_camise_platform_data;
-#endif
-
 
 #define GPIO_MT9P012_STANDBY		58
 #define GPIO_MT9P012_RESET		98
@@ -86,6 +83,9 @@ extern struct camise_platform_data mapphone_camise_platform_data;
 #define OMAP_MCAM_SRC_DIV		    4
 /* legacy MIPI SRC DIV, kept to avoid conflict with old code */
 #define OMAP_MCAM_SRC_DIV_MIPI	            4
+
+/* must match value defined in device tree schema */
+#define MAPPHONE_BP_VIACBP71            0x00220000
 
 #define is_cdma_phone() (!strcmp("CDMA", bp_model))
 extern char *bp_model;

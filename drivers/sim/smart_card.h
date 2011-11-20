@@ -23,7 +23,7 @@
  * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY
  * OF SUCH DAMAGE.
  *
- * Motorola 2010-Jul-22 - Add start stop clock procedure IOCTL
+ * Motorola 2010-Jul-19 - Add start stop clock procedure IOCTL
  * Motorola 2009-Nov-06 - Add support for local timers
  * Motorola 2009-Oct-10 - Add support for low current drain wakeups
  * Motorola 2009-Mar-16 - Support the GIT build environment

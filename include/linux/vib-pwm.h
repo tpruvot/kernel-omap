@@ -29,6 +29,4 @@ struct vib_pwm_platform_data {
 	char *device_name;
 };
 
-void pwm_vibrator_haptic_fire(int value);
-
 #endif

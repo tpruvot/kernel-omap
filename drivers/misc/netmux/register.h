@@ -39,6 +39,7 @@
  *   2008/04/10  Motorola    Add proc_fs for AP Log re-work                   *
  *   2008/07/16  Motorola    Add NetmuxLogInit declaration for AP config log  *
  *   2010/04/28  Motorola    Format cleanup                                   *
+ *   2010/10/29  Motorola    Enable Test channels                             * 
  ******************************************************************************/
 
 /* register.h defines data types used by register.c. The types may very based */
@@ -67,8 +68,8 @@
 #define REGISTER_NETWORK_MINCH      1
 #define REGISTER_NETWORK_MAXCH      8
 #define REGISTER_DIRECT_MINCH       9
-#define REGISTER_DIRECT_MAXCH       40
-#define REGISTER_TTY_MINCH          41
+#define REGISTER_DIRECT_MAXCH       41
+#define REGISTER_TTY_MINCH          42
 #define REGISTER_TTY_MAXCH          47
 #define REGISTER_CONNECTIVITY_MINCH 1
 #define REGISTER_CONNECTIVITY_MAXCH 47

@@ -19,15 +19,12 @@
  */
 
 #include <linux/ioctl.h>
+#include <linux/rtc.h>
 #ifdef __KERNEL__
 #include <linux/workqueue.h>
 #include <linux/completion.h>
 #include <linux/power_supply.h>
 #include <linux/platform_device.h>
-#endif
-
-#ifdef CONFIG_RTC_INTF_SECCLKD
-#include <linux/rtc.h>
 #endif
 
 #define CPCAP_DEV_NAME "cpcap"
@@ -39,7 +36,43 @@
 #define CPCAP_IRQ_INT4_INDEX 48
 #define CPCAP_IRQ_INT5_INDEX 64
 
+#define CPCAP_HWCFG_NUM       2    /* The number of hardware config words. */
+/*
+ * Tell the uC to setup the secondary standby bits for the regulators used.
+ */
+#define CPCAP_HWCFG0_SEC_STBY_SW1       0x0001
+#define CPCAP_HWCFG0_SEC_STBY_SW2       0x0002
+#define CPCAP_HWCFG0_SEC_STBY_SW3       0x0004
+#define CPCAP_HWCFG0_SEC_STBY_SW4       0x0008
+#define CPCAP_HWCFG0_SEC_STBY_SW5       0x0010
+#define CPCAP_HWCFG0_SEC_STBY_VAUDIO    0x0020
+#define CPCAP_HWCFG0_SEC_STBY_VCAM      0x0040
+#define CPCAP_HWCFG0_SEC_STBY_VCSI      0x0080
+#define CPCAP_HWCFG0_SEC_STBY_VDAC      0x0100
+#define CPCAP_HWCFG0_SEC_STBY_VDIG      0x0200
+#define CPCAP_HWCFG0_SEC_STBY_VHVIO     0x0400
+#define CPCAP_HWCFG0_SEC_STBY_VPLL      0x0800
+#define CPCAP_HWCFG0_SEC_STBY_VRF1      0x1000
+#define CPCAP_HWCFG0_SEC_STBY_VRF2      0x2000
+#define CPCAP_HWCFG0_SEC_STBY_VRFREF    0x4000
+#define CPCAP_HWCFG0_SEC_STBY_VSDIO     0x8000
+
+#define CPCAP_HWCFG1_SEC_STBY_VWLAN1    0x0001
+#define CPCAP_HWCFG1_SEC_STBY_VWLAN2    0x0002
+#define CPCAP_HWCFG1_SEC_STBY_VSIM      0x0004
+#define CPCAP_HWCFG1_SEC_STBY_VSIMCARD  0x0008
+#define CPCAP_HWCFG1_SEC_STBY_VUSB      0x0010
+/* Enable mapping of the PRI_STANDBY and SEC_STANDBY lines onto CPCAP GPIO. */
+#define CPCAP_HWCFG1_STBY_GPIO          0x1000
+
+#define CPCAP_WHISPER_MODE_PU 			0x00000001
+#define CPCAP_WHISPER_ENABLE_UART		0x00000002
+
 enum cpcap_regulator_id {
+	CPCAP_SW1,
+	CPCAP_SW2,
+	CPCAP_SW3,
+	CPCAP_SW4,
 	CPCAP_SW5,
 	CPCAP_VCAM,
 	CPCAP_VCSI,
@@ -271,8 +304,10 @@ enum cpcap_reg {
 	CPCAP_REG_LGDET,	/* LMR GCAI Detach Detect */
 	CPCAP_REG_LMISC,	/* LMR Misc Bits */
 	CPCAP_REG_LMACE,	/* LMR Mace IC Support */
+	CPCAP_REG_TEST,         /* Test */
+	CPCAP_REG_ST_TEST1,     /* ST Test 1 */
 
-	CPCAP_REG_END = CPCAP_REG_LMACE, /* End of CPCAP registers. */
+	CPCAP_REG_END = CPCAP_REG_ST_TEST1, /* End of CPCAP registers. */
 
 	CPCAP_REG_MAX		/* The largest valid register value. */
 	= CPCAP_REG_END,
@@ -305,11 +340,18 @@ enum {
 	CPCAP_IOCTL_NUM_UC_SET_TURBO_MODE,
 	CPCAP_IOCTL_NUM_UC__END,
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
 	CPCAP_IOCTL_NUM_RTC__START,
 	CPCAP_IOCTL_NUM_RTC_COUNT,
 	CPCAP_IOCTL_NUM_RTC__END,
-#endif
+
+	CPCAP_IOCTL_NUM_ACCY__START,
+	CPCAP_IOCTL_NUM_ACCY_WHISPER,
+	CPCAP_IOCTL_NUM_ACCY__END,
+
+	CPCAP_IOCTL_NUM_AUDIO_PWR__START,
+	CPCAP_IOCTL_NUM_AUDIO_PWR_MODE,
+	CPCAP_IOCTL_NUM_AUDIO_PWR_ENABLE,
+	CPCAP_IOCTL_NUM_AUDIO_PWR__END,
 };
 
 enum cpcap_irqs {
@@ -439,6 +481,16 @@ enum cpcap_adc_type {
 	CPCAP_ADC_TYPE_BATT_PI,
 };
 
+enum cpcap_bank {
+        CPCAP_BANK_PRIMARY,
+        CPCAP_BANK_SECONDARY,
+};
+
+enum cpcap_standby {
+        CPCAP_PRISTANDBY = 0x01,
+        CPCAP_SECSTANDBY = 0x02,
+};
+
 enum cpcap_macro {
 	CPCAP_MACRO_ROMR,
 	CPCAP_MACRO_RAMW,
@@ -501,6 +553,11 @@ struct cpcap_display_led {
 	unsigned int display_off;
 	unsigned int display_init;
 	unsigned int poll_intvl;
+	unsigned int zone0;
+	unsigned int zone1;
+	unsigned int zone2;
+	unsigned int zone3;
+	unsigned int zone4;
 };
 
 struct cpcap_button_led {
@@ -559,12 +616,11 @@ struct cpcap_batt_usb_data {
 	enum cpcap_batt_usb_model model;
 };
 
-#ifdef CONFIG_RTC_INTF_SECCLKD
 struct cpcap_rtc_time_cnt {
 	struct rtc_time time;
 	unsigned short count;
 };
-#endif
+
 struct cpcap_device;
 
 #ifdef __KERNEL__
@@ -582,6 +638,7 @@ struct cpcap_platform_data {
 			     struct cpcap_batt_data *);
 	void (*usb_changed)(struct power_supply *,
 			    struct cpcap_batt_usb_data *);
+	u16 hwcfg[CPCAP_HWCFG_NUM];
 	unsigned short is_umts;
 };
 
@@ -636,10 +693,8 @@ struct cpcap_regacc {
  * OUTPUTS: The command writes the register data back to user space at the
  * location specified, or it may return an error code.
  */
-#ifdef CONFIG_RTC_INTF_SECCLKD
 #define CPCAP_IOCTL_GET_RTC_TIME_COUNTER \
 	_IOR(0, CPCAP_IOCTL_NUM_RTC_COUNT, struct cpcap_rtc_time_cnt)
-#endif
 
 #define CPCAP_IOCTL_TEST_READ_REG \
 	_IOWR(0, CPCAP_IOCTL_NUM_TEST_READ_REG, struct cpcap_regacc*)
@@ -686,6 +741,15 @@ struct cpcap_regacc {
 
 #define CPCAP_IOCTL_UC_SET_TURBO_MODE \
 	_IOW(0, CPCAP_IOCTL_NUM_UC_SET_TURBO_MODE, unsigned short)
+
+#define CPCAP_IOCTL_ACCY_WHISPER \
+	_IOW(0, CPCAP_IOCTL_NUM_ACCY_WHISPER, unsigned long)
+
+#define CPCAP_IOCTL_AUDIO_PWR_MODE \
+	_IOW(0, CPCAP_IOCTL_NUM_AUDIO_PWR_MODE,  unsigned short)
+
+#define CPCAP_IOCTL_AUDIO_PWR_ENABLE \
+	_IOW(0, CPCAP_IOCTL_NUM_AUDIO_PWR_ENABLE,  unsigned short)
 
 #ifdef __KERNEL__
 struct cpcap_device {

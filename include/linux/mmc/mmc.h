@@ -265,7 +265,7 @@ struct _mmc_csd {
 #define EXT_CSD_CARD_TYPE	196	/* RO */
 #define EXT_CSD_SEC_CNT		212	/* RO, 4 bytes */
 #define EXT_CSD_S_A_TIMEOUT	217
-
+#define EXT_CSD_REL_WR_SEC_C    222	/* RO */
 /*
  * EXT_CSD field definitions
  */

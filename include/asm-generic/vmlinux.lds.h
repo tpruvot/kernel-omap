@@ -154,6 +154,9 @@
 	VMLINUX_SYMBOL(__start___tracepoints) = .;			\
 	*(__tracepoints)						\
 	VMLINUX_SYMBOL(__stop___tracepoints) = .;			\
+	VMLINUX_SYMBOL(__start___imv) = .;				\
+	*(__imv)		/* Immediate values: pointers */	\
+	VMLINUX_SYMBOL(__stop___imv) = .;				\
 	/* implement dynamic printk debug */				\
 	. = ALIGN(8);							\
 	VMLINUX_SYMBOL(__start___verbose) = .;                          \
@@ -436,10 +439,17 @@
 	}
 
 #ifdef CONFIG_CONSTRUCTORS
+#ifdef CONFIG_GCOV_KERNEL
 #define KERNEL_CTORS()	. = ALIGN(8);			   \
 			VMLINUX_SYMBOL(__ctors_start) = .; \
-			*(.ctors)			   \
+			*(.init_array)			   \
 			VMLINUX_SYMBOL(__ctors_end) = .;
+#else
+#define KERNEL_CTORS()  . = ALIGN(8);                      \
+			VMLINUX_SYMBOL(__ctors_start) = .; \
+			*(.ctors)                     \
+			VMLINUX_SYMBOL(__ctors_end) = .;
+#endif
 #else
 #define KERNEL_CTORS()
 #endif

@@ -25,7 +25,6 @@ struct cpcap_audio_pdata {
 	int stereo_loudspeaker;
 	int mic3;
 	int i2s_bp;
-	int mb_bias;
 };
 
 void cpcap_audio_set_platform_config(struct cpcap_audio_pdata *pdata);
@@ -48,8 +47,5 @@ int cpcap_audio_has_19mhz_bp(void);
 
 /*does this product use i2s for voice calls, or network mode?*/
 int cpcap_audio_has_i2s_bp(void);
-
-/*does this product use MB_BIAS_R[1:0] set */
-int cpcap_audio_mb_bias_set(void);
 
 #endif

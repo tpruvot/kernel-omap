@@ -8,6 +8,20 @@
 #ifndef __ASSEMBLY__
 extern void mcount(void);
 extern void __gnu_mcount_nc(void);
+
+#ifdef CONFIG_DYNAMIC_FTRACE
+struct dyn_arch_ftrace {
+	bool gnu_mcount;
+};
+
+static inline unsigned long ftrace_call_adjust(unsigned long addr)
+{
+	return addr;
+}
+
+extern void ftrace_caller_gnu(void);
+#endif
+
 #endif
 
 #endif

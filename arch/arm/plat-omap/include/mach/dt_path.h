@@ -32,6 +32,7 @@
 #define DT_PROP_CHOSEN_USB_PROD_NAME "usb_id_prod_name"
 #define DT_PROP_CHOSEN_USB_PIDS "usb_pids"
 #define DT_PROP_CHOSEN_USB_NLUNS "usb_nluns"
+#define DT_PROP_CHOSEN_USB_CDROM_LUN_NUM "usb_cdrom_lun_num"
 #define DT_PROP_CHOSEN_MODEM_IFACE_NUM "modem_interface_num"
 
 /* Keypad Node */
@@ -84,8 +85,8 @@
 #define DT_PROP_TOUCH_FUZZ_Y		"fuzz_y"
 #define DT_PROP_TOUCH_FUZZ_P		"fuzz_p"
 #define DT_PROP_TOUCH_FUZZ_W		"fuzz_w"
-#define DT_PROP_TOUCH_X_DELTA		"x_delta"
-#define DT_PROP_TOUCH_Y_DELTA		"y_delta"
+#define DT_PROP_TOUCH_X_DELTA           "x_delta"
+#define DT_PROP_TOUCH_Y_DELTA           "y_delta"
 #define DT_PROP_TOUCH_KEY_ARRAY_MAP	"key_array_map"
 #define DT_PROP_TOUCH_KEY_ARRAY_COUNT	"key_array_count"
 #define DT_PROP_TOUCH_T7		"obj_t7"	/* power_cfg */
@@ -142,6 +143,7 @@
 #define DT_HALLEFFECT_DOCK		"/System@0/GPIO@0/HallEffect@0"
 #define DT_PROP_DEV_AVAILABLE	"device_available"
 #define DT_PROP_DEV_NORTH_IS_DESK	"north_is_desk"
+
 
 #define DT_HOME_LED		"/System@0/ButtonBacklight@0"
 #define DT_PROP_TABLET_BUTTON	"tablet_button_led"
@@ -237,7 +239,6 @@
 #define DT_PROP_AUDIO_STEREO_LOUDSPEAKER "stereo_loudspeaker"
 #define DT_PROP_AUDIO_MIC3 "mic3"
 #define DT_PROP_AUDIO_I2S_BP "i2s_bp"
-#define DT_PROP_AUDIO_MB_BIAS "mb_bias"
 
 /* Modem Node */
 #define DT_PATH_MODEM	"/System@0/Modem@0"
