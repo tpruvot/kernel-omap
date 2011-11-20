@@ -249,7 +249,6 @@ err0:
 static void sfh7743_input_cleanup(struct sfh7743_data *sfh)
 {
 	input_unregister_device(sfh->input_dev);
-	input_free_device(sfh->input_dev);
 }
 
 static int sfh7743_probe(struct platform_device *pdev)
@@ -360,7 +359,6 @@ static int __devexit sfh7743_remove(struct platform_device *pdev)
 	gpio_free(sfh->pdata->gpio);
 	sfh7743_device_power_off(sfh);
 	input_unregister_device(sfh->input_dev);
-	input_free_device(sfh->input_dev);
 	if (sfh->pdata->exit)
 		sfh->pdata->exit();
 	destroy_workqueue(sfh->work_queue);

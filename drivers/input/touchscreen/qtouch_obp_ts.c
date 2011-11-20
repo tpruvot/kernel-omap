@@ -1491,7 +1491,7 @@ static ssize_t qtouch_irq_enable(struct device *dev,
 	return err;
 }
 
-static DEVICE_ATTR(irq_enable, 0777, qtouch_irq_status, qtouch_irq_enable);
+static DEVICE_ATTR(irq_enable, 0775, qtouch_irq_status, qtouch_irq_enable);
 
 static ssize_t qtouch_update_status(struct device *dev,
 				    struct device_attribute *attr, char *buf)
@@ -1503,7 +1503,7 @@ static ssize_t qtouch_update_status(struct device *dev,
 	return sprintf(buf, "%u\n", ts->status);
 }
 
-static DEVICE_ATTR(update_status, 0777, qtouch_update_status, NULL);
+static DEVICE_ATTR(update_status, 0555, qtouch_update_status, NULL);
 
 static ssize_t qtouch_fw_version(struct device *dev,
 				 struct device_attribute *attr, char *buf)
@@ -1515,7 +1515,7 @@ static ssize_t qtouch_fw_version(struct device *dev,
 	return sprintf(buf, "0x%X%X\n", ts->fw_version, ts->build_version);
 }
 
-static DEVICE_ATTR(fw_version, 0777, qtouch_fw_version, NULL);
+static DEVICE_ATTR(fw_version, 0555, qtouch_fw_version, NULL);
 
 static int qtouch_ts_probe(struct i2c_client *client,
 			   const struct i2c_device_id *id)
@@ -2037,7 +2037,7 @@ static uint8_t check_chip_calibration(struct qtouch_ts_data *ts)
 		goto err_diag_data;
 	}
 
-	if (qtouch_tsdebug & 32) {
+	if (qtouch_tsdebug & 16) {
 		int msg_bytes;
 		int msg_location;
 		char *msg;
