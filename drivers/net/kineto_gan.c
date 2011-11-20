@@ -318,8 +318,14 @@ static void gannet_recvloop(void)
 {
 	int size;
 	int bufsize = 1600;
-	unsigned char buf[bufsize + 1];
+	unsigned char *buf;
 
+	buf = kmalloc(bufsize + 1, GFP_KERNEL);
+	if (NULL == buf) {
+		printk(KERN_ERR MODULE_NAME
+			": error allocate buf\n");
+		return;
+	}
 	/* kernel thread initialization */
 	lock_kernel();
 
@@ -334,7 +340,7 @@ static void gannet_recvloop(void)
 
 	/* main loop */
 	while (!gthreadquit) {
-		memset(&buf, 0, bufsize + 1);
+		memset(buf, 0, bufsize + 1);
 		size = ksocket_receive(gthread->priv->rx_sock,
 					   &gthread->priv->rx_addr,
 					   buf, bufsize);
@@ -352,6 +358,7 @@ static void gannet_recvloop(void)
 		}
 	}
 
+	kfree(buf);
 	printk(KERN_INFO "gannet thread exit\n");
 }
 

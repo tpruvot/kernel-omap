@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2005-2010 Motorola, Inc.
+ * Copyright (C) 2005-2011 Motorola & Motorola Mobility, Inc.
  */
 
 /* 
@@ -682,7 +682,7 @@ static int sim_ioctl(struct inode *inode, struct file *file,
 
 			if (sim_module_register_ptr != NULL) {
 				args_kernel[2] =
-				read_reg(sim_module_register_ptr);
+				    read_reg(sim_module_register_ptr);
 
 				if (copy_to_user
 				    ((UINT32 *) arg, args_kernel,
@@ -1460,13 +1460,10 @@ static void sim_module_int_rx(UINT8 reader_id)
 				USIM_RX_MASK);
 
 			/* Disable WWT */
-			write_reg_bits(&(sim_registers[0]->irqenable),
-			USIM_WT_EN_MASK, 0);
+			write_reg_bits (&(sim_registers[0]->irqenable), USIM_WT_EN_MASK, 0);
 			all_data_received = TRUE;
 			status_slow_card = FALSE;
-			if (preforming_status_command == FALSE) {
-				sim_module_rx_event |=
-					SIM_MODULE_EVENT_INCOMPLETE_SLIM_STATUS;
+			if(preforming_status_command == FALSE) {
 				sim_module_rx_event |= SIM_MODULE_EVENT_RX_A;
 			}
 		}
@@ -1599,8 +1596,8 @@ static void sim_module_int_reset_detect(UINT8 reader_id)
 		       USIM_RX_EN_MASK, 0);
 
 	/* while there is data in the FIFO ... */
-	while (((sim_registers[reader_id]->
-		 usim_fifos) & FIFORX_EMPTY_MASK) == 0) {
+	while ((read_reg(&(sim_registers[reader_id]->
+		 usim_fifos)) & FIFORX_EMPTY_MASK) == 0) {
 		/* copy the character into the data buffer */
 		sim_module_card_data[reader_id].
 		    buffer[sim_module_card_data[reader_id].buffer_index++]
@@ -2205,6 +2202,8 @@ int sim_slim_status_handler()
 		}
 		/* send incomplete slim status with RX_A event */
 		else {
+			sim_module_rx_event |= SIM_MODULE_EVENT_RX_A |
+				SIM_MODULE_EVENT_INCOMPLETE_SLIM_STATUS;
 			status = 1;
 		}
 	}
