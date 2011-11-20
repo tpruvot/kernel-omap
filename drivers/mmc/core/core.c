@@ -55,6 +55,12 @@ module_param(use_spi_crc, bool, 0);
 static int mmc_schedule_delayed_work(struct delayed_work *work,
 				     unsigned long delay)
 {
+	return queue_delayed_work(workqueue, work, delay);
+}
+
+static int mmc_schedule_delayed_work_lock(struct delayed_work *work,
+				     unsigned long delay)
+{
 	wake_lock(&mmc_delayed_work_wake_lock);
 	return queue_delayed_work(workqueue, work, delay);
 }
@@ -897,7 +903,12 @@ static void mmc_power_up(struct mmc_host *host)
 	 */
 	mmc_delay(10);
 
-	host->ios.clock = host->f_min;
+	if (host->f_min > 400000) {
+		pr_warning("%s: Minimum clock frequency too high for "
+				"identification mode\n", mmc_hostname(host));
+		host->ios.clock = host->f_min;
+	} else
+		host->ios.clock = 400000;
 
 	host->ios.power_mode = MMC_POWER_ON;
 	mmc_set_ios(host);
@@ -976,8 +987,7 @@ int mmc_resume_bus(struct mmc_host *host)
 		host->bus_ops->resume(host);
 	}
 
-	if (host->bus_ops->detect && !host->bus_dead)
-		host->bus_ops->detect(host);
+	mmc_detect_change(host, 0);
 
 	mmc_bus_put(host);
 	printk("%s: Deferred resume completed\n", mmc_hostname(host));
@@ -1054,7 +1064,7 @@ void mmc_detect_change(struct mmc_host *host, unsigned long delay)
 	spin_unlock_irqrestore(&host->lock, flags);
 #endif
 
-	mmc_schedule_delayed_work(&host->detect, delay);
+	mmc_schedule_delayed_work_lock(&host->detect, delay);
 }
 
 EXPORT_SYMBOL(mmc_detect_change);
@@ -1152,13 +1162,13 @@ out:
 		wake_unlock(&mmc_delayed_work_wake_lock);
 
 	if (host->caps & MMC_CAP_NEEDS_POLL)
-		mmc_schedule_delayed_work(&host->detect, HZ);
+		mmc_schedule_delayed_work_lock(&host->detect, HZ);
 }
 
 void mmc_start_host(struct mmc_host *host)
 {
 	mmc_power_off(host);
-	mmc_detect_change(host, 0);
+	mmc_detect_change(host, msecs_to_jiffies(host->init_delay));
 }
 
 void mmc_stop_host(struct mmc_host *host)
@@ -1360,6 +1370,41 @@ int mmc_resume_host(struct mmc_host *host)
 EXPORT_SYMBOL(mmc_resume_host);
 
 #endif
+
+/**
+ *     mmc_reinit_host - reinit a host
+ *     @host: mmc host
+ */
+int mmc_reinit_host(struct mmc_host *host)
+{
+	int err = -1;
+
+	mmc_bus_get(host);
+
+	if (!host->bus_ops || !host->bus_ops->resume || host->bus_dead) {
+		mmc_bus_put(host);
+		goto out;
+	}
+
+	mmc_power_off(host);
+	mmc_power_up(host);
+	mmc_select_voltage(host, host->ocr);
+	err = host->bus_ops->resume(host);
+	if (err)
+		printk(KERN_WARNING "%s: error %d during reinit\n",
+			mmc_hostname(host), err);
+
+	mmc_bus_put(host);
+out:
+	/*
+	 * We add a slight delay here so that resume can progress
+	 * in parallel.
+	 */
+	mmc_detect_change(host, 1);
+
+	return err;
+}
+EXPORT_SYMBOL(mmc_reinit_host);
 
 #ifdef CONFIG_MMC_EMBEDDED_SDIO
 void mmc_set_embedded_sdio_data(struct mmc_host *host,
