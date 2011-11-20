@@ -272,7 +272,7 @@ static void suspend(struct work_struct *work)
 
 	entry_event_num = current_event_num;
 	sys_sync();
-	if (debug_mask & DEBUG_SUSPEND)
+	if (debug_mask & DEBUG_EXIT_SUSPEND)
 		pr_info("suspend: enter suspend\n");
 	ret = pm_suspend(requested_suspend_state);
 	if (debug_mask & DEBUG_EXIT_SUSPEND) {
@@ -435,6 +435,9 @@ static void wake_lock_internal(
 		lock->flags &= ~WAKE_LOCK_AUTO_EXPIRE;
 		list_add(&lock->link, &active_wake_locks[type]);
 	}
+#ifdef CONFIG_PM_DEEPSLEEP
+       lock->pid = current->tgid;
+#endif
 	if (type == WAKE_LOCK_SUSPEND) {
 		current_event_num++;
 #ifdef CONFIG_WAKELOCK_STAT
@@ -527,6 +530,41 @@ static int wakelock_stats_open(struct inode *inode, struct file *file)
 {
 	return single_open(file, wakelock_stats_show, NULL);
 }
+
+#ifdef CONFIG_PM_DEEPSLEEP
+
+ssize_t active_wake_lock_show(
+		struct kobject *kobj, struct kobj_attribute *attr, char *buf)
+{
+
+	unsigned long irqflags;
+	struct wake_lock *lock;
+	char *s = buf;
+	char *end = buf + PAGE_SIZE;
+
+	spin_lock_irqsave(&list_lock, irqflags);
+	list_for_each_entry(lock, &active_wake_locks[WAKE_LOCK_SUSPEND], link) {
+		if (!(lock->flags & WAKE_LOCK_AUTO_EXPIRE)
+				&& (lock->flags & WAKE_LOCK_ACTIVE)) {
+			s += scnprintf(s, end - s, "%s %d\n",
+					lock->name, lock->pid);
+		}
+	}
+	spin_unlock_irqrestore(&list_lock, irqflags);
+
+
+	return s - buf;
+}
+
+
+ssize_t active_wake_lock_store(struct kobject *kobj,
+		struct kobj_attribute *attr,
+		const char *buf, size_t n)
+{
+	return n;
+}
+#endif
+
 
 static const struct file_operations wakelock_stats_fops = {
 	.owner = THIS_MODULE,

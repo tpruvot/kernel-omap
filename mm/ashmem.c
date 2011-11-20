@@ -211,6 +211,14 @@ static int ashmem_release(struct inode *ignored, struct file *file)
 	return 0;
 }
 
+static inline unsigned long
+calc_vm_may_flags(unsigned long prot)
+{
+	return _calc_vm_trans(prot, PROT_READ,  VM_MAYREAD ) |
+	       _calc_vm_trans(prot, PROT_WRITE, VM_MAYWRITE) |
+	       _calc_vm_trans(prot, PROT_EXEC,  VM_MAYEXEC);
+}
+
 static ssize_t ashmem_read(struct file *file, char __user *buf,
 			   size_t len, loff_t *pos)
 {
@@ -234,14 +242,6 @@ static ssize_t ashmem_read(struct file *file, char __user *buf,
 out:
 	mutex_unlock(&ashmem_mutex);
 	return ret;
-}
-
-static inline unsigned long
-calc_vm_may_flags(unsigned long prot)
-{
-	return _calc_vm_trans(prot, PROT_READ,  VM_MAYREAD ) |
-	       _calc_vm_trans(prot, PROT_WRITE, VM_MAYWRITE) |
-	       _calc_vm_trans(prot, PROT_EXEC,  VM_MAYEXEC);
 }
 
 static int ashmem_mmap(struct file *file, struct vm_area_struct *vma)
