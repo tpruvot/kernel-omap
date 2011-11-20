@@ -37,6 +37,13 @@
 
 #define CLOCK_TREE_RESET_TIME 1
 
+/*constants for ST delay workaround*/
+#define STM_STDAC_ACTIVATE_RAMP_TIME   1
+#define STM_STDAC_EN_TEST_PRE          0x090C
+#define STM_STDAC_EN_TEST_POST                 0x0000
+#define STM_STDAC_EN_ST_TEST1_PRE      0x2400
+#define STM_STDAC_EN_ST_TEST1_POST     0x0400
+
 #ifdef CPCAP_AUDIO_DEBUG
 #define CPCAP_AUDIO_DEBUG_LOG(args...)  \
 				printk(KERN_DEBUG "CPCAP_AUDIO_DRIVER:" args)
@@ -643,7 +650,8 @@ static void cpcap_audio_configure_codec(struct cpcap_audio_state *state,
 					CPCAP_AUDIO_DAI_CONFIG_NORMAL ||
 				state->dai_config ==
 					CPCAP_AUDIO_DAI_CONFIG_VOICE_CALL)) {
-				codec_changes.value |= CPCAP_BIT_CDC_EN_RX;
+				codec_changes.value |= CPCAP_BIT_CDC_EN_RX |
+					CPCAP_BIT_AUDOHPF_0 | CPCAP_BIT_AUDOHPF_1;
 			}
 
 			if (needs_cpcap_mic1(state->microphone))
@@ -864,8 +872,25 @@ static void cpcap_audio_configure_stdac(struct cpcap_audio_state *state,
 		stdac_changes.mask = stdac_changes.value | prev_stdac_data;
 		prev_stdac_data = stdac_changes.value;
 
+		if ((stdac_changes.value | CPCAP_BIT_ST_DAC_EN) &&
+			(state->cpcap->vendor == CPCAP_VENDOR_ST)) {
+			logged_cpcap_write(state->cpcap, CPCAP_REG_TEST,
+				STM_STDAC_EN_TEST_PRE, 0xFFFF);
+			logged_cpcap_write(state->cpcap, CPCAP_REG_ST_TEST1,
+				STM_STDAC_EN_ST_TEST1_PRE, 0xFFFF);
+		}
+
 		logged_cpcap_write(state->cpcap, CPCAP_REG_SDAC,
 			stdac_changes.value, stdac_changes.mask);
+
+		if ((stdac_changes.value | CPCAP_BIT_ST_DAC_EN) &&
+			(state->cpcap->vendor == CPCAP_VENDOR_ST)) {
+			msleep(STM_STDAC_ACTIVATE_RAMP_TIME);
+			logged_cpcap_write(state->cpcap, CPCAP_REG_ST_TEST1,
+				STM_STDAC_EN_ST_TEST1_POST, 0xFFFF);
+			logged_cpcap_write(state->cpcap, CPCAP_REG_TEST,
+				STM_STDAC_EN_TEST_POST, 0xFFFF);
+		}
 	}
 }
 
@@ -1247,8 +1272,6 @@ void cpcap_audio_set_audio_state(struct cpcap_audio_state *state)
 
 void cpcap_audio_init(struct cpcap_audio_state *state)
 {
-	unsigned int txmp_init_value = 0;
-
 	CPCAP_AUDIO_DEBUG_LOG("%s() called\n", __func__);
 
 	logged_cpcap_write(state->cpcap, CPCAP_REG_CC, 0, 0xFFFF);
@@ -1256,11 +1279,7 @@ void cpcap_audio_init(struct cpcap_audio_state *state)
 	logged_cpcap_write(state->cpcap, CPCAP_REG_SDAC, 0, 0xFFF);
 	logged_cpcap_write(state->cpcap, CPCAP_REG_SDACDI, 0, 0x3FFF);
 	logged_cpcap_write(state->cpcap, CPCAP_REG_TXI, 0, 0xFDF);
-
-	txmp_init_value = (cpcap_audio_mb_bias_set() & 0x3) << 10;
-	logged_cpcap_write(state->cpcap, CPCAP_REG_TXMP,
-						txmp_init_value, 0xFFF);
-
+	logged_cpcap_write(state->cpcap, CPCAP_REG_TXMP, 0, 0xFFF);
 	logged_cpcap_write(state->cpcap, CPCAP_REG_RXOA, 0, 0x1FF);
 	/* logged_cpcap_write(state->cpcap, CPCAP_REG_RXVC, 0, 0xFFF); */
 	logged_cpcap_write(state->cpcap, CPCAP_REG_RXCOA, 0, 0x7FF);
@@ -1335,16 +1354,3 @@ int cpcap_audio_has_19mhz_bp(void)
 	else
 		return 0;
 }
-
-int cpcap_audio_mb_bias_set(void)
-{
-	/* set MB_BIAS_R[1:0]
-	::: [0]00 : 0Ohm(default)
-	::: [1]01 : 2.2KOhm / [2]10 : 4.7KOhm  */
-	if (platform_config)
-		return platform_config->mb_bias;
-	else
-		return 0;
-
-}
-

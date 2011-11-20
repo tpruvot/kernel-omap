@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2009-2011 Motorola, Inc.
+ * Copyright (C) 2009-2010 Motorola, Inc.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -80,8 +80,7 @@ static void audio_low_power_clear(struct cpcap_3mm5_data *data,
 
 static void send_key_event(struct cpcap_3mm5_data *data, unsigned int state)
 {
-	dev_info(&data->cpcap->spi->dev,
-		 "Headset key event: old=%d, new=%d\n",
+	dev_info(&data->cpcap->spi->dev, "Headset key event: old=%d, new=%d\n",
 		 data->key_state, state);
 
 	if (data->key_state != state) {
@@ -126,41 +125,24 @@ static void hs_handler(enum cpcap_irqs irq, void *data)
 				   CPCAP_BIT_ST_HS_CP_EN);
 		audio_low_power_clear(data_3mm5, &data_3mm5->audio_low_pwr_det);
 
-		/* Give PTTS time to settle */
+		/* Give PTTS time to settle 10ms */
 		msleep(11);
-
-		cpcap_irq_clear(data_3mm5->cpcap, CPCAP_IRQ_MB2);
-		cpcap_irq_clear(data_3mm5->cpcap,
-				CPCAP_IRQ_UC_PRIMACRO_5);
 
 		if (cpcap_irq_sense(data_3mm5->cpcap, CPCAP_IRQ_PTT, 1) <= 0) {
 			/* Headset without mic and MFB is detected. (May also
 			 * be a headset with the MFB pressed.) */
 			new_state = HEADSET_WITHOUT_MIC;
-
-			cpcap_irq_unmask(data_3mm5->cpcap, CPCAP_IRQ_MB2);
-			cpcap_irq_unmask(data_3mm5->cpcap,
-					 CPCAP_IRQ_UC_PRIMACRO_5);
-
-			cpcap_uc_start(data_3mm5->cpcap, CPCAP_MACRO_5);
-		} else if (cpcap_irq_sense(data_3mm5->cpcap, CPCAP_IRQ_MB2, 1)
-			  == 0) {
-			/* Headset with unsupported mic and/or key(s) */
-			new_state = HEADSET_WITHOUT_MIC;
-
-			dev_info(&data_3mm5->cpcap->spi->dev,
-				 "Headset with unsupported MIC and/or keys\n");
-		} else {
+		} else
 			new_state = HEADSET_WITH_MIC;
 
-			cpcap_irq_unmask(data_3mm5->cpcap, CPCAP_IRQ_MB2);
-			cpcap_irq_unmask(data_3mm5->cpcap,
-					 CPCAP_IRQ_UC_PRIMACRO_5);
-
-			cpcap_uc_start(data_3mm5->cpcap, CPCAP_MACRO_5);
-		}
+		cpcap_irq_clear(data_3mm5->cpcap, CPCAP_IRQ_MB2);
+		cpcap_irq_clear(data_3mm5->cpcap, CPCAP_IRQ_UC_PRIMACRO_5);
 
 		cpcap_irq_unmask(data_3mm5->cpcap, CPCAP_IRQ_HS);
+		cpcap_irq_unmask(data_3mm5->cpcap, CPCAP_IRQ_MB2);
+		cpcap_irq_unmask(data_3mm5->cpcap, CPCAP_IRQ_UC_PRIMACRO_5);
+
+		cpcap_uc_start(data_3mm5->cpcap, CPCAP_MACRO_5);
 	}
 
 	switch_set_state(&data_3mm5->sdev, new_state);
@@ -344,7 +326,7 @@ static struct platform_driver cpcap_3mm5_driver = {
 	.probe		= cpcap_3mm5_probe,
 	.remove		= __exit_p(cpcap_3mm5_remove),
 #ifdef CONFIG_PM
-	.suspend       	= cpcap_3mm5_suspend,
+	.suspend		= cpcap_3mm5_suspend,
 	.resume		= cpcap_3mm5_resume,
 #endif
 	.driver		= {
@@ -366,6 +348,6 @@ static void __exit cpcap_3mm5_exit(void)
 module_exit(cpcap_3mm5_exit);
 
 MODULE_ALIAS("platform:cpcap_3mm5");
-MODULE_DESCRIPTION("CPCAP 3.5 mm headset detection driver");
+MODULE_DESCRIPTION("CPCAP USB detection driver");
 MODULE_AUTHOR("Motorola");
 MODULE_LICENSE("GPL");

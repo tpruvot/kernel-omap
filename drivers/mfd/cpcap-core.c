@@ -18,9 +18,6 @@
 
 #include <linux/fs.h>
 #include <linux/miscdevice.h>
-#include <linux/leds-cpcap-display.h>
-#include <linux/leds-cpcap-button.h>
-#include <linux/leds-ld-cpcap.h>
 #include <linux/platform_device.h>
 #include <linux/regulator/machine.h>
 #include <linux/spi/spi.h>
