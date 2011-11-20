@@ -74,6 +74,9 @@ struct omap_mmc_platform_data {
 
 	u64 dma_mask;
 
+	/* Delay in msec before detecting card */
+	int init_delay;
+
 	/* To identify device name */
 	char * name;
 
@@ -101,6 +104,9 @@ struct omap_mmc_platform_data {
 
 		/* Try to sleep or power off when possible */
 		unsigned power_saving:1;
+
+		/* If using power_saving and the MMC power is not to go off */
+		unsigned no_off:1;
 
 		int switch_pin;			/* gpio (card detect) */
 		int gpio_wp;			/* gpio (write protect) */
