@@ -38,7 +38,7 @@
 #include "pm.h"
 #include "prm-regbits-34xx.h"
 
-#define DEFAULT_TIMEOUT (HZ / 2)
+#define DEFAULT_TIMEOUT HZ
 
 struct omap_uart_state {
 	int num;
@@ -78,6 +78,7 @@ struct omap_uart_state {
 static struct omap_uart_state omap_uart[OMAP_MAX_NR_PORTS];
 static LIST_HEAD(uart_list);
 static unsigned int fifo_idleblks = 0;
+static int uart0_padconf = 0x180;
 
 #ifdef CONFIG_SERIAL_OMAP
 static struct plat_serialomap_port serial_platform_data[] = {
@@ -85,18 +86,27 @@ static struct plat_serialomap_port serial_platform_data[] = {
 		.membase	= OMAP2_L4_IO_ADDRESS(OMAP_UART1_BASE),
 		.irq		= 72,
 		.regshift	= 2,
+#ifdef CONFIG_SERIAL_OMAP3430_HW_FLOW_CONTROL
+		.ctsrts		= UART_EFR_CTS | UART_EFR_RTS,
+#endif
 		.flags		= UPF_BOOT_AUTOCONF,
 	},
 	{
 		.membase	= OMAP2_L4_IO_ADDRESS(OMAP_UART2_BASE),
 		.irq		= 73,
 		.regshift	= 2,
+#ifdef CONFIG_SERIAL_OMAP3430_HW_FLOW_CONTROL
+		.ctsrts		= UART_EFR_CTS | UART_EFR_RTS,
+#endif
 		.flags		= UPF_BOOT_AUTOCONF,
 	},
 	{
 		.membase	= OMAP2_L4_IO_ADDRESS(OMAP_UART3_BASE),
 		.irq		= 74,
 		.regshift	= 2,
+#ifdef CONFIG_SERIAL_OMAP3430_HW_FLOW_CONTROL
+		.ctsrts		= UART_EFR_RTS,
+#endif
 		.flags		= UPF_BOOT_AUTOCONF,
 	},
 };
@@ -240,6 +250,13 @@ static void omap_uart_save_context(struct omap_uart_state *uart)
 	if (!enable_off_mode)
 		return;
 
+	/* FIXME
+	 * For omap3430 CORE/PERR OFF isn't temporarily supported,
+	 * so no need to save&restore the context of serial.
+	 */
+	if (cpu_is_omap34xx())
+		return;
+
 	lcr = serial_read_reg(p, UART_LCR);
 	serial_write_reg(p, UART_LCR, 0xBF);
 	uart->dll = serial_read_reg(p, UART_DLL);
@@ -262,6 +279,13 @@ static void omap_uart_restore_context(struct omap_uart_state *uart)
 		return;
 
 	if (!uart->context_valid)
+		return;
+
+	/* FIXME
+	 * For omap3430 CORE/PERR OFF isn't temporarily supported,
+	 * so no need to save&restore the context of serial.
+	 */
+	if (cpu_is_omap34xx())
 		return;
 
 	uart->context_valid = 0;
@@ -546,7 +570,7 @@ static void omap_uart_idle_init(struct omap_uart_state *uart)
 		switch (uart->num) {
 		case 0:
 			wk_mask = OMAP3430_ST_UART1_MASK;
-			padconf = 0x180;
+			padconf = uart0_padconf;
 			break;
 		case 1:
 			wk_mask = OMAP3430_ST_UART2_MASK;
@@ -676,6 +700,21 @@ static int fifo_idleblk_set(void *data, u64 val)
 DEFINE_SIMPLE_ATTRIBUTE(fifo_idleblk_fops, fifo_idleblk_get, fifo_idleblk_set, "%llu\n");
 void __init omap_serial_early_init(void)
 {
+}
+
+void __init omap_serial_ctsrts_init(unsigned char ctsrts[])
+{
+#if defined(CONFIG_SERIAL_OMAP) && \
+	defined(CONFIG_SERIAL_OMAP3430_HW_FLOW_CONTROL)
+	serial_platform_data[0].ctsrts = ctsrts[0];
+	serial_platform_data[1].ctsrts = ctsrts[1];
+	serial_platform_data[2].ctsrts = ctsrts[2];
+#endif
+}
+
+void __init omap_uart_set_uart0_padconf(int padconf)
+{
+	uart0_padconf = padconf;
 }
 
 void __init omap_serial_init(int wake_gpio_strobe,

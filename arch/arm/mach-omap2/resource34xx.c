@@ -19,16 +19,20 @@
 #include <linux/pm_qos_params.h>
 #include <linux/cpufreq.h>
 #include <linux/delay.h>
+#include <linux/spinlock.h>
 
 #include <plat/powerdomain.h>
 #include <plat/clockdomain.h>
 #include <plat/omap34xx.h>
+#include <plat/omap-pm.h>
 
 #include "smartreflex.h"
 #include "resource34xx.h"
 #include "pm.h"
 #include "cm.h"
 #include "cm-regbits-34xx.h"
+
+static DEFINE_SPINLOCK(dpll3_clock_lock);
 
 #ifndef CONFIG_CPU_IDLE
 #warning MPU latency constraints require CONFIG_CPU_IDLE to function!
@@ -155,14 +159,17 @@ static int curr_vdd1_opp;
 static int curr_vdd2_opp;
 static DEFINE_MUTEX(dvfs_mutex);
 
-static unsigned short get_opp(struct omap_opp *opp_freq_table,
+unsigned short get_opp_id(struct omap_opp *opp_freq_table,
 		unsigned long freq)
 {
 	struct omap_opp *prcm_config;
 	prcm_config = opp_freq_table;
 
-	if (prcm_config->rate <= freq)
+	if (prcm_config->rate == freq)
 		return prcm_config->opp_id; /* Return the Highest OPP */
+	else
+		prcm_config--;
+
 	for (; prcm_config->rate; prcm_config--)
 		if (prcm_config->rate < freq)
 			return (prcm_config+1)->opp_id;
@@ -170,6 +177,27 @@ static unsigned short get_opp(struct omap_opp *opp_freq_table,
 			return prcm_config->opp_id;
 	/* Return the least OPP */
 	return (prcm_config+1)->opp_id;
+}
+
+/**
+ * get_opp_from_target_level - get a opp from target level
+ */
+unsigned short get_opp_from_target_level(struct omap_opp *opp_freq_table,
+		int target_level)
+{
+	int i;
+
+	for (i = 1; i <= MAX_VDD1_OPP; i++)
+		if (opp_freq_table[i].opp_id == target_level)
+			break;
+
+	if (i > MAX_VDD1_OPP) {
+		printk(KERN_ERR "OMAP-PM: Error: target level=%d\n",
+			 target_level);
+		i = VDD1_OPP1;
+	}
+
+	return i;
 }
 
 /**
@@ -190,14 +218,14 @@ void init_opp(struct shared_resource *resp)
 		vdd1_resp = resp;
 		dpll1_clk = clk_get(NULL, "dpll1_ck");
 		dpll2_clk = clk_get(NULL, "dpll2_ck");
-		resp->curr_level = get_opp(mpu_opps + MAX_VDD1_OPP,
+		resp->curr_level = get_opp_id(mpu_opps + MAX_VDD1_OPP,
 				dpll1_clk->rate);
 		curr_vdd1_opp = resp->curr_level;
 	} else if (strcmp(resp->name, "vdd2_opp") == 0) {
 		vdd2_resp = resp;
 		dpll3_clk = clk_get(NULL, "dpll3_m2_ck");
 		l3_clk = clk_get(NULL, "l3_ick");
-		resp->curr_level = get_opp(l3_opps + MAX_VDD2_OPP,
+		resp->curr_level = get_opp_id(l3_opps + MAX_VDD2_OPP,
 				l3_clk->rate);
 		curr_vdd2_opp = resp->curr_level;
 	}
@@ -242,17 +270,32 @@ static int program_opp_freq(int res, int target_level, int current_level)
 {
 	int ret = 0, l3_div;
 	int *curr_opp;
+	int dsp_target, dsp_curr;
 
-	lock_scratchpad_sem();
 	if (res == VDD1_OPP) {
 		curr_opp = &curr_vdd1_opp;
-		clk_set_rate(dpll1_clk, mpu_opps[target_level].rate);
-		clk_set_rate(dpll2_clk, dsp_opps[target_level].rate);
+		dsp_target = get_opp_from_target_level(dsp_opps, target_level);
+		dsp_curr = get_opp_from_target_level(dsp_opps, current_level);
+
+		/* With the enabling of the 1.2G/65M OPP for Droid2WE
+		 * There is a very short window of time when the system
+		 * would be running at 1.2G/800M. To avoid this for safe volt,
+		 * change dsp freq rate and then ARM rate.
+		 */
+		if ((mpu_opps[target_level].rate > mpu_opps[current_level].rate)
+			&& (dsp_opps[dsp_target].rate < dsp_opps[dsp_curr].rate)
+		   ) {
+			clk_set_rate(dpll2_clk, dsp_opps[dsp_target].rate);
+			clk_set_rate(dpll1_clk, mpu_opps[target_level].rate);
+		} else {
+			clk_set_rate(dpll1_clk, mpu_opps[target_level].rate);
+			clk_set_rate(dpll2_clk, dsp_opps[dsp_target].rate);
+		}
 #ifndef CONFIG_CPU_FREQ
 		/*Update loops_per_jiffy if processor speed is being changed*/
 		loops_per_jiffy = compute_lpj(loops_per_jiffy,
-			mpu_opps[current_level].rate/1000,
-			mpu_opps[target_level].rate/1000);
+				mpu_opps[current_level].rate/1000,
+				mpu_opps[target_level].rate/1000);
 #endif
 	} else {
 		curr_opp = &curr_vdd2_opp;
@@ -261,50 +304,110 @@ static int program_opp_freq(int res, int target_level, int current_level)
 		ret = clk_set_rate(dpll3_clk,
 				l3_opps[target_level].rate * l3_div);
 	}
-	if (ret) {
-		unlock_scratchpad_sem();
+	if (ret)
 		return current_level;
-	}
-#ifdef CONFIG_PM
-	omap3_save_scratchpad_contents();
-#endif
-	unlock_scratchpad_sem();
 
 	*curr_opp = target_level;
 	return target_level;
 }
 
+#ifdef CONFIG_OMAP_SMARTREFLEX_CLASS1P5
+u8 sr_class1p5 = 1;
+#else
+/* use default of 0 */
+u8 sr_class1p5;
+#endif
+
+
 static int program_opp(int res, struct omap_opp *opp, int target_level,
 		int current_level)
 {
-	int i, ret = 0, raise;
+	int ret_freq = 0;
+	int ret = 0;
 #ifdef CONFIG_OMAP_SMARTREFLEX
+	int ret_volt = 0;
 	unsigned long t_opp, c_opp;
+	u8 target_v, current_v;
 
 	t_opp = ID_VDD(res) | ID_OPP_NO(opp[target_level].opp_id);
 	c_opp = ID_VDD(res) | ID_OPP_NO(opp[current_level].opp_id);
 #endif
 
 	/* Sanity check of the OPP params before attempting to set */
-	if (!opp[target_level].rate || !opp[target_level].vsel)
-		return -EINVAL;
-
-	if (target_level > current_level)
-		raise = 1;
-	else
-		raise = 0;
-
-	for (i = 0; i < 2; i++) {
-		if (i == raise)
-			ret = program_opp_freq(res, target_level,
-					current_level);
+	if (unlikely(!opp[target_level].rate || !opp[target_level].vsel))
+		return current_level;
 #ifdef CONFIG_OMAP_SMARTREFLEX
-		else
-			sr_voltagescale_vcbypass(t_opp, c_opp,
-				opp[target_level].vsel,
-				opp[current_level].vsel);
+	/* Start with nominal voltage */
+	target_v = opp[target_level].vsel;
+	current_v = opp[current_level].vsel;
+	if (!sr_class1p5) {
+		sr_vp_disable_both(t_opp, c_opp);
+	} else {
+		/* if use class 1.5, decide on which voltage to use */
+		target_v = (opp[target_level].sr_adjust_vsel) ?
+			opp[target_level].sr_adjust_vsel : target_v;
+		current_v = (opp[current_level].sr_adjust_vsel) ?
+			opp[current_level].sr_adjust_vsel : current_v;
+	}
+#endif
+	if (target_level > current_level) {
+#ifdef CONFIG_OMAP_SMARTREFLEX
+		ret_volt = sr_voltage_set(t_opp, c_opp,
+				target_v, current_v);
+		/* Preventing changing frequency if voltage change has failed */
+		if (ret_volt == 0) {
+#endif
+			ret_freq = program_opp_freq(res, target_level,
+						current_level);
+#ifdef CONFIG_OMAP_SMARTREFLEX
+			if (unlikely(ret_freq == current_level)) {
+				ret_volt = sr_voltage_set(t_opp, c_opp,
+						current_v, target_v);
+
+				printk(KERN_ERR "Failed to change OPP freq:"
+					" target_level=%d, current_level=%d\n",
+						target_level, current_level);
+				ret = current_level;
+			}
+		} else {
+			printk(KERN_ERR "Failed to change OPP Voltage:"
+					" target_level=%d, current_level=%d\n",
+					target_level, current_level);
+			ret = current_level;
+		}
+
+#endif
+	} else {
+		ret_freq = program_opp_freq(res, target_level,
+				current_level);
+#ifdef CONFIG_OMAP_SMARTREFLEX
+		if (ret_freq == target_level) {
+			ret_volt = sr_voltage_set(t_opp, c_opp,
+					target_v, current_v);
+			if (unlikely(ret_volt != 0)) {
+				printk(KERN_ERR "Failed to change OPP Voltage:"
+					" target_level=%d, current_level=%d\n",
+						target_level, current_level);
+				ret = target_level;
+			}
+
+
+		} else {
+			printk(KERN_ERR "Failed to change OPP freq:"
+					" target_level=%d, current_level=%d\n",
+					target_level, current_level);
+			ret = current_level;
+		}
 #endif
 	}
+#ifdef CONFIG_OMAP_SMARTREFLEX
+	if (!sr_class1p5)
+		sr_vp_enable_both(t_opp, c_opp);
+	else if (!opp[target_level].sr_adjust_vsel)
+		sr_recalibrate(opp, t_opp, c_opp);
+#endif
+	if (ret == 0)
+		return target_level;
 
 	return ret;
 }
@@ -378,17 +481,18 @@ int set_opp(struct shared_resource *resp, u32 target_level)
 	int ind;
 
 	if (resp == vdd1_resp) {
-		if (target_level < 3)
+		if (target_level < VDD1_THRESHOLD)
 			resource_release("vdd2_opp", &vdd2_dev);
 
 		resource_set_opp_level(VDD1_OPP, target_level, 0);
 		/*
 		 * For VDD1 OPP3 and above, make sure the interconnect
-		 * is at 100Mhz or above.
-		 * throughput in KiB/s for 100 Mhz = 100 * 1000 * 4.
+		 * is strictly above 100Mhz.
+		 * throughput in KiB/s for 200 Mhz = 200 * 1000 * 4.
 		 */
-		if (target_level >= 3)
-			resource_request("vdd2_opp", &vdd2_dev, 400000);
+		if (target_level >= VDD1_THRESHOLD)
+			resource_request("vdd2_opp", &vdd2_dev,
+			4 * l3_opps[omap_pm_get_max_vdd2_opp()].rate/1000);
 
 	} else if (resp == vdd2_resp) {
 		tput = target_level;
@@ -396,7 +500,7 @@ int set_opp(struct shared_resource *resp, u32 target_level)
 		/* Convert the tput in KiB/s to Bus frequency in MHz */
 		req_l3_freq = (tput * 1000)/4;
 
-		for (ind = 2; ind <= MAX_VDD2_OPP; ind++)
+		for (ind = MIN_VDD2_OPP; ind <= MAX_VDD2_OPP; ind++)
 			if ((l3_opps + ind)->rate >= req_l3_freq) {
 				target_level = ind;
 				break;
@@ -453,10 +557,10 @@ int set_freq(struct shared_resource *resp, u32 target_level)
 		return 0;
 
 	if (strcmp(resp->name, "mpu_freq") == 0) {
-		vdd1_opp = get_opp(mpu_opps + MAX_VDD1_OPP, target_level);
+		vdd1_opp = get_opp_id(mpu_opps + MAX_VDD1_OPP, target_level);
 		resource_request("vdd1_opp", &dummy_mpu_dev, vdd1_opp);
 	} else if (strcmp(resp->name, "dsp_freq") == 0) {
-		vdd1_opp = get_opp(dsp_opps + MAX_VDD1_OPP, target_level);
+		vdd1_opp = get_opp_id(dsp_opps + MAX_VDD1_OPP, target_level);
 		resource_request("vdd1_opp", &dummy_dsp_dev, vdd1_opp);
 	}
 	resp->curr_level = target_level;
