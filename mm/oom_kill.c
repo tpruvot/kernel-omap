@@ -311,8 +311,9 @@ void dump_tasks(const struct mem_cgroup *mem)
 {
 	struct task_struct *g, *p;
 
-	printk(KERN_INFO "[ pid ]   uid  tgid total_vm      rss cpu oom_adj "
-	       "name\n");
+	printk(KERN_INFO "[ pid ]   uid  tgid total_vm file_rss "
+	       "anon_rss cpu oom_adj name\n");
+
 	do_each_thread(g, p) {
 		struct mm_struct *mm;
 
@@ -332,10 +333,14 @@ void dump_tasks(const struct mem_cgroup *mem)
 			task_unlock(p);
 			continue;
 		}
-		printk(KERN_INFO "[%5d] %5d %5d %8lu %8lu %3d     %3d %s\n",
-		       p->pid, __task_cred(p)->uid, p->tgid, mm->total_vm,
-		       get_mm_rss(mm), (int)task_cpu(p), p->signal->oom_adj,
-		       p->comm);
+
+		printk(KERN_INFO "[%5d] %5d %5d %8lu %8lu %8lu %3d %3d %s\n",
+			p->pid, __task_cred(p)->uid, p->tgid, mm->total_vm,
+			get_mm_counter(mm, file_rss),
+			get_mm_counter(mm, anon_rss),
+			(int)task_cpu(p), p->signal->oom_adj,
+			p->comm);
+
 		task_unlock(p);
 	} while_each_thread(g, p);
 }
