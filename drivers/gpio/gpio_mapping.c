@@ -1,7 +1,7 @@
 /*
  *                                        gpio_mapping.c
  *
- * Copyright (C) 2009 Motorola, Inc.
+ * Copyright (C) 2009-2010 Motorola, Inc.
  */
 
 /*
@@ -22,6 +22,7 @@
 
 /* Date         Author      Comment
  * ===========  ==========  ==================================================
+ * 11-Oct-2010  Motorola    Remove printing error to kernel log.
  * 10-Jun-2009  Motorola    Initial.
  */
 
@@ -52,7 +53,6 @@ int get_gpio_by_name(char *name)
 			return gpio_map_table[i].pin_num;
 	}
 
-	printk(KERN_ERR "Unable to get gpio pin num for %s\n", name);
 	return -EINVAL;
 }
 EXPORT_SYMBOL(get_gpio_by_name);

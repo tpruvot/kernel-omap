@@ -429,7 +429,7 @@ static void lm3559_spot_light_brightness_set(struct led_classdev *led_cdev,
 				__func__, LM3559_FLASH_DURATION, err);
 			return;
 		}
-    } else {
+	} else {
 
 		err = lm3559_read_reg(torch_data, LM3559_ENABLE_REG,
 			&val);
@@ -537,7 +537,7 @@ static ssize_t lm3559_strobe_store(struct device *dev,
 				__func__, LM3559_FLASH_DURATION, err);
 			return -EIO;
 		 }
-    } else {
+	} else {
 		if (lm3559_debug)
 			pr_info("%s: strobe off \n", __func__);
 
@@ -685,7 +685,7 @@ static void set_rgb_brightness(struct lm3559_data *msg_ind_data,
 	if (value) {
 
 		if (lm3559_debug)
-			pr_info("%s:Turning off the message indicator\n",
+			pr_info("%s:Turning on the message indicator\n",
 			__func__);
 
 		err = lm3559_read_reg(msg_ind_data, LM3559_ENABLE_REG,
@@ -1002,9 +1002,8 @@ static int lm3559_probe(struct i2c_client *client,
 		err = -ENODEV;
 		goto err_reg_register_file_failed;
 	}
-		pr_info("LM3559 torch initialized\n");
-	if (lm3559_debug)
-		pr_info("LM3559 torch initialized\n");
+	
+	pr_info("LM3559 torch initialized\n");
 
 	return 0;
 

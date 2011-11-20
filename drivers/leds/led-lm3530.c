@@ -223,7 +223,7 @@ static void ld_lm3530_brightness_set(struct led_classdev *led_cdev,
 		old_led_on = als_data->led_on;
 		als_data->led_on = 1;
 
-		if (als_data->mode != MANUAL && old_led_on == 0) {
+		if (als_data->als_pdata->als_enabled == 1 && old_led_on == 0) {
 			disable_irq(als_data->client->irq);
 			queue_work(als_data->working_queue, &als_data->wq);
 		}
@@ -708,8 +708,10 @@ err_create_file_als_failed:
 	led_classdev_unregister(&als_data->led_dev);
 err_class_reg_failed:
 err_reg_init_failed:
-	if (als_data->als_pdata->als_enabled == 1)
+	if (als_data->als_pdata->als_enabled == 1) {
 		input_unregister_device(als_data->idev);
+		als_data->idev = NULL;
+	}
 error_input_register_failed:
 	if (als_data->als_pdata->als_enabled == 1)
 		free_irq(als_data->client->irq, als_data);
