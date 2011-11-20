@@ -650,7 +650,6 @@ err0:
 static void akm8973_input_cleanup(struct akm8973_data *akm)
 {
 	input_unregister_device(akm->input_dev);
-	input_free_device(akm->input_dev);
 }
 
 static int akm8973_probe(struct i2c_client *client,

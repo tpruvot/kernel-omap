@@ -154,11 +154,11 @@ config ATMEL_SSC
 
 	  If unsure, say N.
 
-config OMAP_MODEM_CONTROL
-   bool "OMAP device driver to interface with a modem co-processor"
+config MODEM_CONTROL
+   bool "device driver to interface with a modem co-processor"
    default y
    ---help---
-         This option enables the omap device driver to control and
+         This option enables the device driver to control and
          interface with a modem co-processor.  This module is needed to
          monitor for modem panics, interact with the modem during master
          clear, and allow modem power down/up support.
@@ -419,6 +419,5 @@ source "drivers/misc/smc/Kconfig"
 source "drivers/misc/sec/Kconfig"
 source "drivers/misc/netmux/Kconfig"
 source "drivers/misc/netmux_linkdriver/Kconfig"
-source "drivers/misc/camera_misc/Kconfig"
 
 endif # MISC_DEVICES

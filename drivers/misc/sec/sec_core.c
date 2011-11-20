@@ -454,7 +454,7 @@ SEC_STAT_T SecProcessorID(unsigned char *buffer, int length)
 	fuse_ptr = (unsigned int *) REGISTER_ADDRESS_DIE_ID;
 
 	for (counter = 0; counter < 4; counter++) {
-		fuse_value = omap_readl((u32)(fuse_ptr - counter));
+		fuse_value = omap_readl((u32)(fuse_ptr + counter));
 		memcpy(buffer + (4 * counter), (void *) &fuse_value,
 		       sizeof(unsigned int));
 	}
@@ -499,6 +499,8 @@ SEC_MODE_T SecProcessorType(void)
 	/*Engineering only if engineering blown and production not */
 	if (((*iterator) & (0x3 << 13)) == (0x1 << 13))
 		ret_val = SEC_ENGINEERING;
+
+	kfree(data);
 
 	return ret_val;
 

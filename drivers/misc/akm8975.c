@@ -281,7 +281,7 @@ static int akm_aot_ioctl(struct inode *inode, struct file *file,
 
 	if (((m_flag || mv_flag) == 1) && (e_flag == 0)) {
 		if (akm8975_power_on(akm) < 0) {
-			pr_err("akm9087 power on failed\n");
+			pr_err("akm8975 power on failed\n");
 			return -EFAULT;
 		}
 		e_flag = 1;
@@ -289,7 +289,7 @@ static int akm_aot_ioctl(struct inode *inode, struct file *file,
 
 	if (((m_flag || mv_flag) == 0) && (e_flag == 1)) {
 		if (akm8975_power_off(akm) < 0) {
-			pr_err("akm9087 power off failed\n");
+			pr_err("akm8975 power off failed\n");
 			return -EFAULT;
 		}
 		e_flag = 0;
@@ -584,6 +584,12 @@ int akm8975_probe(struct i2c_client *client,
 	INIT_WORK(&akm->work, akm_work_func);
 	i2c_set_clientdata(client, akm);
 
+	if (akm->pdata->init) {
+		err = akm->pdata->init();
+		if (err < 0)
+			goto exit_init_failed;
+	}
+
 	err = akm8975_power_on(akm);
 	if (err < 0)
 		goto exit_power_on_failed;
@@ -663,6 +669,9 @@ exit_input_register_device_failed:
 exit_input_dev_alloc_failed:
 	akm8975_power_off(akm);
 exit_power_on_failed:
+	if (akm->pdata->exit)
+		akm->pdata->exit();
+exit_init_failed:
 	kfree(akm);
 exit_alloc_data_failed:
 exit_check_functionality_failed:
@@ -679,6 +688,8 @@ static int __devexit akm8975_remove(struct i2c_client *client)
 	misc_deregister(&akmd_device);
 	misc_deregister(&akm_aot_device);
 	akm8975_power_off(akm);
+	if (akm->pdata->exit)
+		akm->pdata->exit();
 	kfree(akm);
 	return 0;
 }

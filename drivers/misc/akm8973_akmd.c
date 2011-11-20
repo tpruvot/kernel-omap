@@ -785,6 +785,8 @@ int akm8973_probe(struct i2c_client *client, const struct i2c_device_id *devid)
 	return 0;
 
 exit_misc_device_register_failed:
+	input_unregister_device(akm->input_dev);
+	akm->input_dev = NULL;
 exit_input_register_device_failed:
 	input_free_device(akm->input_dev);
 exit_input_dev_alloc_failed:

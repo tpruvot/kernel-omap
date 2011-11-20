@@ -30,7 +30,7 @@
  *                                                                            *
  ******************************************************************************/
 /*   DATE        OWNER       COMMENT                                          *
-/*   ----------  ----------  -----------------------------------------------  *
+ *   ----------  ----------  -----------------------------------------------  *
  *   2006/09/28  Motorola    Initial version                                  *
  *   2006/10/19  Motorola    Fixed scheduling while atomic issues             *
  *   2006/12/26  Motorola    Check bd status when mxc_dma_get_config() returns*
@@ -58,7 +58,7 @@
  *   2009/09/16  Motorola    Comment out cleanup_module() since linkdriver    *
  *                           should not be removed and causes rmmod to panic  *
  *   2010/04/28  Motorola    Format cleanup                                   *
- *   2010/08/12  Motorola    Temp kernel memory allocation fix                *
+ *   2010/09/02  Motorola    Temp kernel memory allocation fix                *
  *   2010/09/03  Motorola    Enable proc logging for Engineering builds only  *
  ******************************************************************************/
 
@@ -413,12 +413,12 @@ static void MUXReceiveComplete(unsigned long arg)
 		receive_commbuff[index] = dev_alloc_skb(LOC_MAX_RCV_SIZ);
 		if (!receive_commbuff[index]) {
 			NETMUX_FAIL
-			("IPC Link Driver 1st attempt failed to obtain rcv skbuff\n");
+			("IPC Link Driver 1st attempt failed to obtain receive skbuff\n");
 
 			/* Try allocation again with 2100 bytes */
 			receive_commbuff[index] = dev_alloc_skb(LOC_RETRY_RCV_SIZ);
 			if (!receive_commbuff[index]) {
-				panic("IPC Link Driver 2nd attempt failed to obtain rcv skbuff\n");
+				panic("IPC Link Driver 2nd attempt failed to obtain receive skbuff\n");
 			}
 		}
 

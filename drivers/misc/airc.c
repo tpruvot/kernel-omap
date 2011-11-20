@@ -350,7 +350,6 @@ err0:
 static void airc_input_cleanup(struct airc_data *aircfh)
 {
 	input_unregister_device(aircfh->input_dev);
-	input_free_device(aircfh->input_dev);
 }
 
 static int airc_probe(struct i2c_client *client, const struct i2c_device_id *id)

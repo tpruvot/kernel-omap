@@ -876,7 +876,6 @@ static void kxtf9_sensitivity_init(struct kxtf9_data *tf9)
 static void kxtf9_input_cleanup(struct kxtf9_data *tf9)
 {
 	input_unregister_device(tf9->input_dev);
-	input_free_device(tf9->input_dev);
 }
 
 static int kxtf9_probe(struct i2c_client *client,

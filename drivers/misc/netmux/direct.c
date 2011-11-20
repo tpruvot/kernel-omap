@@ -45,6 +45,7 @@
  *   2009/08/13  Motorola    Remove wait in DirectClose()                     *
  *   2009/10/02  Motorola    Replace LOGCOMMBUFF with DEBUG                   *
  *   2010/04/28  Motorola    Format cleanup                                   *
+ *   2010/08/12  Motorola    Klocwork Fix
  ******************************************************************************/
 
 /* direct.c defines an interface between a NetMUX and the Linux raw character */
@@ -524,8 +525,15 @@ int DirectOpen(struct inode *inode, struct file *filp)
 	browse = major_list;
 	while (browse && browse->major != major)
 		browse = browse->next;
-
-	direct = browse->directif;
+    
+        if(browse)
+        {
+	   direct = browse->directif;
+        }
+        else
+        {
+           return -ECONNABORTED;
+        }
 
 	enable_interrupts(state);
 

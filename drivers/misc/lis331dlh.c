@@ -66,7 +66,7 @@
 #define I2C_RETRIES		5
 #define AUTO_INCREMENT		0x80
 
-struct {
+static struct {
 	unsigned int cutoff;
 	unsigned int mask;
 } odr_table[] = {
@@ -578,7 +578,6 @@ err0:
 static void lis331dlh_input_cleanup(struct lis331dlh_data *lis)
 {
 	input_unregister_device(lis->input_dev);
-	input_free_device(lis->input_dev);
 }
 
 static int lis331dlh_probe(struct i2c_client *client,
