@@ -314,7 +314,7 @@ static PVRSRV_ERROR OpenDCDevice(IMG_UINT32 ui32DeviceID,
 	{
 		DEBUG_PRINTK((KERN_WARNING DRIVER_PREFIX
 			": UnblankDisplay failed (%d)", eError));
-		return (PVRSRV_ERROR_GENERIC);
+		return (OMAP_ERROR_GENERIC);
 	}
 
 	
@@ -418,7 +418,9 @@ static PVRSRV_ERROR GetDCBufferAddr(IMG_HANDLE        hDevice,
                                     IMG_UINT32        *pui32ByteSize,
                                     IMG_VOID          **ppvCpuVAddr,
                                     IMG_HANDLE        *phOSMapInfo,
-                                    IMG_BOOL          *pbIsContiguous)
+                                    IMG_BOOL          *pbIsContiguous,
+				    IMG_UINT32        *pui32TilingStride)
+
 {
 	OMAPLFB_DEVINFO	*psDevInfo;
 	OMAPLFB_BUFFER *psSystemBuffer;
@@ -482,7 +484,7 @@ static PVRSRV_ERROR CreateDCSwapChain(IMG_HANDLE hDevice,
 	OMAPLFB_BUFFER *psBuffer;
 	OMAPLFB_VSYNC_FLIP_ITEM *psVSyncFlips;
 	IMG_UINT32 i;
-	PVRSRV_ERROR eError = PVRSRV_ERROR_GENERIC;
+	PVRSRV_ERROR eError = OMAP_ERROR_GENERIC;
 	unsigned long ulLockFlags;
 	IMG_UINT32 ui32BuffersToSkip;
 
@@ -1226,7 +1228,7 @@ OMAP_ERROR OMAPLFBInit(void)
 		psDevInfo->sDisplayInfo.ui32PhysicalHeightmm = psDevInfo->psLINFBInfo->var.height;
 
 		DEBUG_PRINTK((KERN_INFO DRIVER_PREFIX
-			": Maximum number of swap chain buffers: %lu\n",
+			": Maximum number of swap chain buffers: %u\n",
 			psDevInfo->sDisplayInfo.ui32MaxSwapChainBuffers));
 
 		psDevInfo->sSystemBuffer.sSysAddr = psDevInfo->sFBInfo.sSysAddr;
@@ -1257,7 +1259,7 @@ OMAP_ERROR OMAPLFBInit(void)
 		
 		if(psDevInfo->sPVRJTable.pfnPVRSRVRegisterDCDevice (
 			&psDevInfo->sDCJTable,
-			&psDevInfo->ulDeviceID ) != PVRSRV_OK)
+			&psDevInfo->uDeviceID ) != PVRSRV_OK)
 		{
 			return (OMAP_ERROR_DEVICE_REGISTER_FAILED);
 		}
@@ -1273,7 +1275,7 @@ OMAP_ERROR OMAPLFBInit(void)
 
 
 
-		if (psDevInfo->sPVRJTable.pfnPVRSRVRegisterCmdProcList (psDevInfo->ulDeviceID,
+		if (psDevInfo->sPVRJTable.pfnPVRSRVRegisterCmdProcList (psDevInfo->uDeviceID,
 																&pfnCmdProcList[0],
 																aui32SyncCountList,
 																OMAPLFB_COMMAND_COUNT) != PVRSRV_OK)
@@ -1313,13 +1315,13 @@ OMAP_ERROR OMAPLFBDeinit(void)
 		
 		PVRSRV_DC_DISP2SRV_KMJTABLE	*psJTable = &psDevInfo->sPVRJTable;
 
-		if (psDevInfo->sPVRJTable.pfnPVRSRVRemoveCmdProcList (psDevInfo->ulDeviceID, OMAPLFB_COMMAND_COUNT) != PVRSRV_OK)
+		if (psDevInfo->sPVRJTable.pfnPVRSRVRemoveCmdProcList (psDevInfo->uDeviceID, OMAPLFB_COMMAND_COUNT) != PVRSRV_OK)
 		{
 			return (OMAP_ERROR_GENERIC);
 		}
 
 		
-		if (psJTable->pfnPVRSRVRemoveDCDevice(psDevInfo->ulDeviceID) != PVRSRV_OK)
+		if (psJTable->pfnPVRSRVRemoveDCDevice(psDevInfo->uDeviceID) != PVRSRV_OK)
 		{
 			return (OMAP_ERROR_GENERIC);
 		}

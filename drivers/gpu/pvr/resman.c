@@ -108,12 +108,13 @@ typedef struct
 
 PRESMAN_LIST	gpsResList = IMG_NULL;
 
-#include "lists.h"	  
+#include "lists.h"	 
 
 static IMPLEMENT_LIST_ANY_VA(RESMAN_ITEM)
 static IMPLEMENT_LIST_ANY_VA_2(RESMAN_ITEM, IMG_BOOL, IMG_FALSE)
 static IMPLEMENT_LIST_INSERT(RESMAN_ITEM)
 static IMPLEMENT_LIST_REMOVE(RESMAN_ITEM)
+static IMPLEMENT_LIST_REVERSE(RESMAN_ITEM)
 
 static IMPLEMENT_LIST_REMOVE(RESMAN_CONTEXT)
 static IMPLEMENT_LIST_INSERT(RESMAN_CONTEXT)
@@ -124,10 +125,10 @@ static IMPLEMENT_LIST_INSERT(RESMAN_CONTEXT)
 static PVRSRV_ERROR FreeResourceByPtr(RESMAN_ITEM *psItem, IMG_BOOL bExecuteCallback);
 
 static PVRSRV_ERROR FreeResourceByCriteria(PRESMAN_CONTEXT	psContext,
-										   IMG_UINT32		ui32SearchCriteria, 
-										   IMG_UINT32		ui32ResType, 
-										   IMG_PVOID		pvParam, 
-										   IMG_UINT32		ui32Param, 
+										   IMG_UINT32		ui32SearchCriteria,
+										   IMG_UINT32		ui32ResType,
+										   IMG_PVOID		pvParam,
+										   IMG_UINT32		ui32Param,
 										   IMG_BOOL			bExecuteCallback);
 
 
@@ -146,7 +147,7 @@ static PVRSRV_ERROR FreeResourceByCriteria(PRESMAN_CONTEXT	psContext,
 PVRSRV_ERROR ResManInit(IMG_VOID)
 {
 	if (gpsResList == IMG_NULL)
-	{	
+	{
 		
 		if (OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
 						sizeof(*gpsResList),
@@ -158,11 +159,11 @@ PVRSRV_ERROR ResManInit(IMG_VOID)
 
 		
 		gpsResList->psContextList = IMG_NULL;
-	
+
 		
 		VALIDATERESLIST();
 	}
-	
+
 	return PVRSRV_OK;
 }
 
@@ -197,7 +198,7 @@ PVRSRV_ERROR PVRSRVResManConnect(IMG_HANDLE			hPerProc,
 	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "PVRSRVResManConnect: ERROR allocating new RESMAN context struct"));
-		
+
 		
 		VALIDATERESLIST();
 
@@ -223,14 +224,14 @@ PVRSRV_ERROR PVRSRVResManConnect(IMG_HANDLE			hPerProc,
 	RELEASE_SYNC_OBJ;
 
 	*phResManContext = psResManContext;
-	
+
 	return PVRSRV_OK;
 }
 
 
 IMG_VOID PVRSRVResManDisconnect(PRESMAN_CONTEXT psResManContext,
 								IMG_BOOL		bKernelContext)
-{	
+{
 	
 	ACQUIRE_SYNC_OBJ;
 
@@ -251,34 +252,39 @@ IMG_VOID PVRSRVResManDisconnect(PRESMAN_CONTEXT psResManContext,
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_EVENT_OBJECT, 0, 0, IMG_TRUE);
 
 		
-		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_MODIFY_SYNC_OPS, 0, 0, IMG_TRUE);
 		
+		List_RESMAN_ITEM_Reverse(&psResManContext->psResItemList);
+		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_MODIFY_SYNC_OPS, 0, 0, IMG_TRUE);
+		List_RESMAN_ITEM_Reverse(&psResManContext->psResItemList);  
+
 		
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_HW_RENDER_CONTEXT, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_HW_TRANSFER_CONTEXT, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_HW_2D_CONTEXT, 0, 0, IMG_TRUE);
-		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_TRANSFER_CONTEXT, 0, 0, IMG_TRUE);			
+		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_TRANSFER_CONTEXT, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_SHARED_PB_DESC_CREATE_LOCK, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_SHARED_PB_DESC, 0, 0, IMG_TRUE);
 
 		
-		
+
 		
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_DISPLAYCLASS_SWAPCHAIN_REF, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_DISPLAYCLASS_DEVICE, 0, 0, IMG_TRUE);
-		
+
 		
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_BUFFERCLASS_DEVICE, 0, 0, IMG_TRUE);
 
 		
+		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_SYNC_INFO, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_DEVICECLASSMEM_MAPPING, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_DEVICEMEM_WRAP, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_DEVICEMEM_MAPPING, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_KERNEL_DEVICEMEM_ALLOCATION, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_DEVICEMEM_ALLOCATION, 0, 0, IMG_TRUE);
 		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_DEVICEMEM_CONTEXT, 0, 0, IMG_TRUE);
+		FreeResourceByCriteria(psResManContext, RESMAN_CRITERIA_RESTYPE, RESMAN_TYPE_SHARED_MEM_INFO, 0, 0, IMG_TRUE);
 	}
-	
+
 	
 	PVR_ASSERT(psResManContext->psResItemList == IMG_NULL);
 
@@ -302,9 +308,9 @@ IMG_VOID PVRSRVResManDisconnect(PRESMAN_CONTEXT psResManContext,
 
 
 PRESMAN_ITEM ResManRegisterRes(PRESMAN_CONTEXT	psResManContext,
-							   IMG_UINT32		ui32ResType, 
-							   IMG_PVOID		pvParam, 
-							   IMG_UINT32		ui32Param, 
+							   IMG_UINT32		ui32ResType,
+							   IMG_PVOID		pvParam,
+							   IMG_UINT32		ui32Param,
 							   RESMAN_FREE_FN	pfnFreeResource)
 {
 	PRESMAN_ITEM	psNewResItem;
@@ -327,8 +333,11 @@ PRESMAN_ITEM ResManRegisterRes(PRESMAN_CONTEXT	psResManContext,
 	PVR_DPF((PVR_DBG_MESSAGE, "ResManRegisterRes: register resource "
 			"Context 0x%x, ResType 0x%x, pvParam 0x%x, ui32Param 0x%x, "
 			"FreeFunc %08X",
-			psResManContext, ui32ResType, (IMG_UINT32)pvParam,
-			ui32Param, pfnFreeResource));
+			(IMG_UINTPTR_T)psResManContext,
+			ui32ResType,
+			(IMG_UINTPTR_T)pvParam,
+			ui32Param,
+			(IMG_UINTPTR_T)pfnFreeResource));
 
 	
 	if (OSAllocMem(PVRSRV_OS_PAGEABLE_HEAP,
@@ -354,7 +363,7 @@ PRESMAN_ITEM ResManRegisterRes(PRESMAN_CONTEXT	psResManContext,
 	psNewResItem->ui32Param			= ui32Param;
 	psNewResItem->pfnFreeResource	= pfnFreeResource;
 	psNewResItem->ui32Flags		    = 0;
-	
+
 	
 	List_RESMAN_ITEM_Insert(&psResManContext->psResItemList, psNewResItem);
 
@@ -379,7 +388,8 @@ PVRSRV_ERROR ResManFreeResByPtr(RESMAN_ITEM	*psResItem)
 		return PVRSRV_OK;
 	}
 
-	PVR_DPF((PVR_DBG_MESSAGE, "ResManFreeResByPtr: freeing resource at %08X", psResItem));
+	PVR_DPF((PVR_DBG_MESSAGE, "ResManFreeResByPtr: freeing resource at %08X",
+			(IMG_UINTPTR_T)psResItem));
 
 	
 	ACQUIRE_SYNC_OBJ;
@@ -401,9 +411,9 @@ PVRSRV_ERROR ResManFreeResByPtr(RESMAN_ITEM	*psResItem)
 
 
 PVRSRV_ERROR ResManFreeResByCriteria(PRESMAN_CONTEXT	psResManContext,
-									 IMG_UINT32			ui32SearchCriteria, 
-									 IMG_UINT32			ui32ResType, 
-									 IMG_PVOID			pvParam, 
+									 IMG_UINT32			ui32SearchCriteria,
+									 IMG_UINT32			ui32ResType,
+									 IMG_PVOID			pvParam,
 									 IMG_UINT32			ui32Param)
 {
 	PVRSRV_ERROR	eError;
@@ -418,8 +428,8 @@ PVRSRV_ERROR ResManFreeResByCriteria(PRESMAN_CONTEXT	psResManContext,
 
 	PVR_DPF((PVR_DBG_MESSAGE, "ResManFreeResByCriteria: "
 			"Context 0x%x, Criteria 0x%x, Type 0x%x, Addr 0x%x, Param 0x%x",
-			psResManContext, ui32SearchCriteria, ui32ResType,
-			(IMG_UINT32)pvParam, ui32Param));
+			(IMG_UINTPTR_T)psResManContext, ui32SearchCriteria, ui32ResType,
+			(IMG_UINTPTR_T)pvParam, ui32Param));
 
 	
 	eError = FreeResourceByCriteria(psResManContext, ui32SearchCriteria,
@@ -461,7 +471,7 @@ PVRSRV_ERROR ResManDissociateRes(RESMAN_ITEM		*psResItem,
 
 		
 		List_RESMAN_ITEM_Insert(&psNewResManContext->psResItemList, psResItem);
-		
+
 	}
 	else
 	{
@@ -476,12 +486,12 @@ PVRSRV_ERROR ResManDissociateRes(RESMAN_ITEM		*psResItem,
 	return eError;
 }
 
-IMG_BOOL ResManFindResourceByPtr_AnyVaCb(RESMAN_ITEM *psCurItem, va_list va)
+static IMG_BOOL ResManFindResourceByPtr_AnyVaCb(RESMAN_ITEM *psCurItem, va_list va)
 {
 	RESMAN_ITEM		*psItem;
-	
+
 	psItem = va_arg(va, RESMAN_ITEM*);
-	
+
 	return (IMG_BOOL)(psCurItem == psItem);
 }
 
@@ -510,18 +520,21 @@ IMG_INTERNAL PVRSRV_ERROR ResManFindResourceByPtr(PRESMAN_CONTEXT	psResManContex
 
 	PVR_DPF((PVR_DBG_MESSAGE,
 			"FindResourceByPtr: psItem=%08X, psItem->psNext=%08X",
-			psItem, psItem->psNext));
+			(IMG_UINTPTR_T)psItem, (IMG_UINTPTR_T)psItem->psNext));
 
 	PVR_DPF((PVR_DBG_MESSAGE,
 			"FindResourceByPtr: Resource Ctx 0x%x, Type 0x%x, Addr 0x%x, "
 			"Param 0x%x, FnCall %08X, Flags 0x%x",
-			psResManContext,
-			psItem->ui32ResType, (IMG_UINT32)psItem->pvParam, psItem->ui32Param,
-			psItem->pfnFreeResource, psItem->ui32Flags));
+			(IMG_UINTPTR_T)psResManContext,
+			psItem->ui32ResType,
+			(IMG_UINTPTR_T)psItem->pvParam,
+			psItem->ui32Param,
+			(IMG_UINTPTR_T)psItem->pfnFreeResource,
+			psItem->ui32Flags));
 
 	
 	if(List_RESMAN_ITEM_IMG_BOOL_Any_va(psResManContext->psResItemList,
-										ResManFindResourceByPtr_AnyVaCb,
+										&ResManFindResourceByPtr_AnyVaCb,
 										psItem))
 	{
 		eResult = PVRSRV_OK;
@@ -540,7 +553,7 @@ IMG_INTERNAL PVRSRV_ERROR ResManFindResourceByPtr(PRESMAN_CONTEXT	psResManContex
 static PVRSRV_ERROR FreeResourceByPtr(RESMAN_ITEM	*psItem,
 									  IMG_BOOL		bExecuteCallback)
 {
-	PVRSRV_ERROR eError = PVRSRV_OK;
+	PVRSRV_ERROR eError;
 
 	PVR_ASSERT(psItem != IMG_NULL);
 
@@ -556,17 +569,18 @@ static PVRSRV_ERROR FreeResourceByPtr(RESMAN_ITEM	*psItem,
 
 	PVR_DPF((PVR_DBG_MESSAGE,
 			"FreeResourceByPtr: psItem=%08X, psItem->psNext=%08X",
-			psItem, psItem->psNext));
+			(IMG_UINTPTR_T)psItem, (IMG_UINTPTR_T)psItem->psNext));
 
 	PVR_DPF((PVR_DBG_MESSAGE,
 			"FreeResourceByPtr: Type 0x%x, Addr 0x%x, "
 			"Param 0x%x, FnCall %08X, Flags 0x%x",
-			psItem->ui32ResType, (IMG_UINT32)psItem->pvParam, psItem->ui32Param,
-			psItem->pfnFreeResource, psItem->ui32Flags));
+			psItem->ui32ResType,
+			(IMG_UINTPTR_T)psItem->pvParam, psItem->ui32Param,
+			(IMG_UINTPTR_T)psItem->pfnFreeResource, psItem->ui32Flags));
 
 	
 	List_RESMAN_ITEM_Remove(psItem);
-	
+
 
 	
 	RELEASE_SYNC_OBJ;
@@ -585,16 +599,16 @@ static PVRSRV_ERROR FreeResourceByPtr(RESMAN_ITEM	*psItem,
 	ACQUIRE_SYNC_OBJ;
 
 	
-	if(OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(RESMAN_ITEM), psItem, IMG_NULL) != PVRSRV_OK)
+	eError = OSFreeMem(PVRSRV_OS_PAGEABLE_HEAP, sizeof(RESMAN_ITEM), psItem, IMG_NULL);
+	if (eError != PVRSRV_OK)
 	{
 		PVR_DPF((PVR_DBG_ERROR, "FreeResourceByPtr: ERROR freeing resource list item memory"));
-		eError = PVRSRV_ERROR_GENERIC;
 	}
 
 	return(eError);
 }
 
-IMG_VOID* FreeResourceByCriteria_AnyVaCb(RESMAN_ITEM *psCurItem, va_list va)
+static IMG_VOID* FreeResourceByCriteria_AnyVaCb(RESMAN_ITEM *psCurItem, va_list va)
 {
 	IMG_UINT32 ui32SearchCriteria;
 	IMG_UINT32 ui32ResType;
@@ -606,7 +620,7 @@ IMG_VOID* FreeResourceByCriteria_AnyVaCb(RESMAN_ITEM *psCurItem, va_list va)
 	pvParam = va_arg(va, IMG_PVOID);
 	ui32Param = va_arg(va, IMG_UINT32);
 
-		
+	
 	if(
 	
 		(((ui32SearchCriteria & RESMAN_CRITERIA_RESTYPE) == 0UL) ||
@@ -630,10 +644,10 @@ IMG_VOID* FreeResourceByCriteria_AnyVaCb(RESMAN_ITEM *psCurItem, va_list va)
 }
 
 static PVRSRV_ERROR FreeResourceByCriteria(PRESMAN_CONTEXT	psResManContext,
-										   IMG_UINT32		ui32SearchCriteria, 
-										   IMG_UINT32		ui32ResType, 
-										   IMG_PVOID		pvParam, 
-										   IMG_UINT32		ui32Param, 
+										   IMG_UINT32		ui32SearchCriteria,
+										   IMG_UINT32		ui32ResType,
+										   IMG_PVOID		pvParam,
+										   IMG_UINT32		ui32Param,
 										   IMG_BOOL			bExecuteCallback)
 {
 	PRESMAN_ITEM	psCurItem;
@@ -643,7 +657,7 @@ static PVRSRV_ERROR FreeResourceByCriteria(PRESMAN_CONTEXT	psResManContext,
 	
 	while((psCurItem = (PRESMAN_ITEM)
 				List_RESMAN_ITEM_Any_va(psResManContext->psResItemList,
-										FreeResourceByCriteria_AnyVaCb,
+										&FreeResourceByCriteria_AnyVaCb,
 										ui32SearchCriteria,
 										ui32ResType,
 						 				pvParam,
@@ -682,11 +696,13 @@ static IMG_VOID ValidateResList(PRESMAN_LIST psResList)
 		{
 			PVR_DPF((PVR_DBG_WARNING,
 					"psCC=%08X psCC->ppsThis=%08X psCC->psNext=%08X ppsTC=%08X",
-					psCurContext, psCurContext->ppsThis,
-					psCurContext->psNext, ppsThisContext));
+					(IMG_UINTPTR_T)psCurContext,
+					(IMG_UINTPTR_T)psCurContext->ppsThis,
+					(IMG_UINTPTR_T)psCurContext->psNext,
+					(IMG_UINTPTR_T)ppsThisContext));
 			PVR_ASSERT(psCurContext->ppsThis == ppsThisContext);
 		}
-	
+
 		
 		psCurItem = psCurContext->psResItemList;
 		ppsThisItem = &psCurContext->psResItemList;
@@ -698,7 +714,10 @@ static IMG_VOID ValidateResList(PRESMAN_LIST psResList)
 			{
 				PVR_DPF((PVR_DBG_WARNING,
 						"psCurItem=%08X psCurItem->ppsThis=%08X psCurItem->psNext=%08X ppsThisItem=%08X",
-						psCurItem, psCurItem->ppsThis, psCurItem->psNext, ppsThisItem));
+						(IMG_UINTPTR_T)psCurItem,
+						(IMG_UINTPTR_T)psCurItem->ppsThis,
+						(IMG_UINTPTR_T)psCurItem->psNext,
+						(IMG_UINTPTR_T)ppsThisItem));
 				PVR_ASSERT(psCurItem->ppsThis == ppsThisItem);
 			}
 
