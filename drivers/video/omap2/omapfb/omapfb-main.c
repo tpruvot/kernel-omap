@@ -1465,12 +1465,8 @@ static int omapfb_alloc_fbmem_display(struct fb_info *fbi, unsigned long size,
 			DBG("adjusting fb mem size for VRFB, %u -> %lu\n",
 					w * h * bytespp, size);
 		} else {
-#ifdef CONFIG_PVR_OMAP_DSS2
 		/* pvr drivers require double buffered fb */
 		size = w * h * bytespp * 2 + 8192;
-#else
-		size = w * h * bytespp;
-#endif
 		}
 	}
 
@@ -2254,8 +2250,17 @@ static int omapfb_probe(struct platform_device *pdev)
 				sw_te = def_display->sw_te_sup(def_display);
 
 			if (sw_te == false) {
-				if (def_display->enable_te)
-					def_display->enable_te(def_display, 1);
+				/* Workaround for TE disable on Sage.
+				 * will be removed by CR# IKSTABLETWOV-3732 */
+				if (def_display->panel.panel_id == 0x000a0003) {
+					if (def_display->enable_te)
+						def_display->enable_te(
+							def_display, 0);
+				} else {
+					if (def_display->enable_te)
+						def_display->enable_te(
+							def_display, 1);
+				}
 			} else {
 				if (def_display->enable_te)
 					def_display->enable_te(def_display, 0);
