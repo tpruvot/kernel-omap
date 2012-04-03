@@ -88,7 +88,7 @@ int __init_or_module omap_cfg_reg(const unsigned long index)
 		is_mux_config = 1;
 #endif
 #ifdef CONFIG_VIB_PWM
-	if (index == AF22_34XX_GPIO9_OUT)
+	if (index == AF22_34XX_GPIO9)
 		is_mux_config = 1;
 #endif
 #if defined(CONFIG_VIDEO_MIPI_INTERFACE)
