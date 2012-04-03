@@ -268,7 +268,8 @@ kernel_clean:
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) mrproper
-	rm -f $(TARGET_DEFCONFIG)
+	@rm -rf $(KERNEL_SRC_DIR)/include/config
+	@rm -f $(TARGET_DEFCONFIG)
 	@rm -f $(KERNEL_BUILD_DIR)/.*.txt
 
 #
@@ -280,16 +281,9 @@ kernel_clean:
 # NOTE: "strip" MUST be done for generated .ko files!!!
 # =============================
 .PHONY: ext_kernel_modules
-ext_kernel_modules: tiwlan_drv tiap_drv
+ext_kernel_modules: tiwlan_drv tiap_drv jordan_modules
 
-# TODO (CM):
-# build jordan device tree modules
-# ext_kernel_modules: jordan_modules
-
-# TODO:
-# ext_modules_clean doesn't work
-# wlan need to be updated to fix it
-ext_kernel_modules_clean: tiwlan_drv_clean - tiap_drv_clean
+ext_kernel_modules_clean: tiwlan_drv_clean tiap_drv_clean jordan_modules_clean
 
 
 # wlan driver module
@@ -327,6 +321,11 @@ $(TARGET_PREBUILT_KERNEL): kernel
 $(INSTALLED_KERNEL_TARGET): $(TARGET_PREBUILT_KERNEL) | $(ACP)
 	$(transform-prebuilt-to-target)
 
+jordan_modules:
+	$(API_MAKE) -C $(ROOTDIR)device/motorola/jordan/modules modules
+
+jordan_modules_clean:
+	$(API_MAKE) -C $(ROOTDIR)device/motorola/jordan/modules clean
 #
 # install kernel modules into system image
 #-----------------------------------------
