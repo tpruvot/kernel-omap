@@ -1,6 +1,8 @@
 ifeq ($(TARGET_BOARD_PLATFORM),omap3)
 
 # Copyright (C) 2009 Motorola, Inc.
+# Copyright (C) 2011 CyanogenMod Project
+#
 #####################################################################
 #
 # Script creation notes by: David Ding (dding@motorola.com)
@@ -87,7 +89,7 @@ TEST_MUDFLAP := true
 
 DEFCONFIGSRC                := ${KERNEL_SRC_DIR}/arch/arm/configs
 LJAPDEFCONFIGSRC            := ${DEFCONFIGSRC}/ext_config
-PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/mapphone_defconfig
+PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/mapphone_mb525_defconfig
 _TARGET_DEFCONFIG           := __ext_mapphone_defconfig
 TARGET_DEFCONFIG            := $(DEFCONFIGSRC)/$(_TARGET_DEFCONFIG)
 
@@ -224,7 +226,7 @@ endif
 # ========================================
 # We need to check warning no matter if build passed, failed or interuptted
 .PHONY: kernel
-kernel: $(CONFIG_OUT) | kernel_modules
+kernel: $(CONFIG_OUT)
 	$(call kernel-check-gcc-warnings, $(KERNEL_ERR_LOG))
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
@@ -280,10 +282,15 @@ kernel_clean:
 .PHONY: ext_kernel_modules
 ext_kernel_modules: tiwlan_drv tiap_drv
 
+# TODO (CM):
+# build jordan device tree modules
+# ext_kernel_modules: jordan_modules
+
 # TODO:
 # ext_modules_clean doesn't work
-# wlan, graphic, SMC drivers need to be updated to fix it
+# wlan need to be updated to fix it
 ext_kernel_modules_clean: tiwlan_drv_clean - tiap_drv_clean
+
 
 # wlan driver module
 #-------------------
