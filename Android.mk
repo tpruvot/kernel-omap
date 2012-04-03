@@ -1,3 +1,5 @@
+ifeq ($(TARGET_BOARD_PLATFORM),omap3)
+
 # Copyright (C) 2009 Motorola, Inc.
 #####################################################################
 #
@@ -80,6 +82,9 @@ KERNEL_ERR_LOG     := $(KERNEL_BUILD_DIR)/.kbld_err_log.txt
 KMOD_ERR_LOG       := $(KERNEL_BUILD_DIR)/.kmod_err_log.txt
 KERNEL_FFLAG       := $(KERNEL_BUILD_DIR)/.filter_ok.txt
 
+# ignore warnings
+TEST_MUDFLAP := true
+
 DEFCONFIGSRC                := ${KERNEL_SRC_DIR}/arch/arm/configs
 LJAPDEFCONFIGSRC            := ${DEFCONFIGSRC}/ext_config
 PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/mapphone_defconfig
@@ -90,10 +95,9 @@ MOTO_MOD_INSTALL := $(TARGET_OUT)/lib/modules
 WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
 WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
 
-SAFENET_DRV_PATH := $(ROOTDIR)vendor/authentec/safenet/vpndriver
-
 GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
-inst_hook: $(GIT_HOOKS_DIR)/pre-commit $(GIT_HOOKS_DIR)/checkpatch.pl
+#inst_hook: $(GIT_HOOKS_DIR)/pre-commit $(GIT_HOOKS_DIR)/checkpatch.pl
+inst_hook:
 
 $(GIT_HOOKS_DIR)/pre-commit: $(KERNEL_SRC_DIR)/scripts/pre-commit
 	@-cp -f $< $@
@@ -121,10 +125,13 @@ else
 ENG_BLD := 1
 endif
 
+#Disabled, kernel is prod
+ENG_BLD := 0
+
 ifeq ($(ENG_BLD), 1)
-PRODUCT_SPECIFIC_DEFCONFIGS += \
-    ${LJAPDEFCONFIGSRC}/eng_bld.config
-ANDR_LOCALVERSION ?= 'CONFIG_LOCALVERSION=-eng'
+PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/eng_bld.config
+else
+PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/user_bld.config
 endif
 
 ifeq ($(TEST_DRV_CER), 1)
@@ -143,23 +150,19 @@ endif
 
 # Option to enable or disable gcov
 ifeq ($(TEST_COVERAGE),1)
-        PRODUCT_SPECIFIC_DEFCONFIGS += \
-			${LJAPDEFCONFIGSRC}/feature/coverage.config
+        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/coverage.config
 endif
 
 ifeq ($(TEST_KMEMLEAK),1)
-        PRODUCT_SPECIFIC_DEFCONFIGS += \
-			${LJAPDEFCONFIGSRC}/feature/kmemleak.config
+        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/kmemleak.config
 endif
 
 ifeq ($(TEST_FAULTINJECT),1)
-        PRODUCT_SPECIFIC_DEFCONFIGS += \
-			${LJAPDEFCONFIGSRC}/feature/faultinject.config
+        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/faultinject.config
 endif
 
 ifeq ($(TEST_MUDFLAP),1)
-         PRODUCT_SPECIFIC_DEFCONFIGS += \
-            ${LJAPDEFCONFIGSRC}/feature/mudflap.config
+         PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/mudflap.config
 endif
 
 #
@@ -185,7 +188,7 @@ kernel_config: $(CONFIG_OUT)
 $(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) inst_hook | $(KERNEL_BUILD_DIR)
 	@echo DEPMOD: $(DEPMOD)
 	$(MAKE) -j1 -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
-		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) $(ANDR_LOCALVERSION) \
+		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) \
 		KBUILD_DEFCONFIG=$(_TARGET_DEFCONFIG) \
 		defconfig modules_prepare
@@ -195,7 +198,7 @@ $(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) inst_hook | $(KERNEL_BUILD_DI
 #-----------------------------
 $(KERNEL_FFLAG): $(KERNEL_WARN_FILTER) | $(KERNEL_BUILD_DIR)
 	@echo "Gcc warning filter changed, clean build will be enforced\n"
-	$(MAKE) -j1 -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) $(ANDR_LOCALVERSION) \
+	$(MAKE) -j1 -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
                  CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
                  O=$(KERNEL_BUILD_DIR) clean
 	@touch $(KERNEL_FFLAG)
@@ -223,7 +226,7 @@ endif
 .PHONY: kernel
 kernel: $(CONFIG_OUT) | kernel_modules
 	$(call kernel-check-gcc-warnings, $(KERNEL_ERR_LOG))
-	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) $(ANDR_LOCALVERSION) \
+	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
 		zImage 2>&1 | tee $(KERNEL_ERR_LOG)
 	$(call kernel-check-gcc-warnings, $(KERNEL_ERR_LOG))
@@ -235,7 +238,7 @@ kernel: $(CONFIG_OUT) | kernel_modules
 .PHONY: kernel_modules
 kernel_modules: $(CONFIG_OUT) | $(DEPMOD)
 	$(call kernel-check-gcc-warnings, $(KMOD_ERR_LOG))
-	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) $(ANDR_LOCALVERSION) \
+	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
 		DEPMOD=$(DEPMOD) INSTALL_MOD_PATH=$(KERNEL_BUILD_DIR) \
 		modules 2>&1 | tee $(KMOD_ERR_LOG)
@@ -245,14 +248,14 @@ kernel_modules: $(CONFIG_OUT) | $(DEPMOD)
 # It is useful for build specific module with extra options
 # (e.g. TEST_DRV_CER)
 kernel_dir:
-	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) $(ANDR_LOCALVERSION) \
+	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) $(DIR_TO_BLD)
 
 #NOTE: "strip" MUST be done for generated .ko files!!!
 .PHONY: kernel_modules_install
 kernel_modules_install: kernel_modules | $(DEPMOD)
-	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) $(ANDR_LOCALVERSION) \
+	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) \
 		DEPMOD=$(DEPMOD) \
@@ -260,7 +263,7 @@ kernel_modules_install: kernel_modules | $(DEPMOD)
 		modules_install
 
 kernel_clean:
-	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) $(ANDR_LOCALVERSION) \
+	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) mrproper
 	rm -f $(TARGET_DEFCONFIG)
@@ -274,13 +277,13 @@ kernel_clean:
 #
 # NOTE: "strip" MUST be done for generated .ko files!!!
 # =============================
-.PHONY: ext_kernel_modules safenet_drv
-ext_kernel_modules: tiwlan_drv tiap_drv safenet_drv
+.PHONY: ext_kernel_modules
+ext_kernel_modules: tiwlan_drv tiap_drv
 
 # TODO:
 # ext_modules_clean doesn't work
 # wlan, graphic, SMC drivers need to be updated to fix it
-ext_kernel_modules_clean: safenet_drv_clean tiwlan_drv_clean - tiap_drv_clean
+ext_kernel_modules_clean: tiwlan_drv_clean - tiap_drv_clean
 
 # wlan driver module
 #-------------------
@@ -305,15 +308,6 @@ tiwlan_drv_clean:
 tiap_drv_clean:
 	$(API_MAKE) -C $(WLAN_AP_DRV_PATH) clean
 
-safenet_drv: $(CONFIG_OUT)
-	$(API_MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
-		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
-		M=$(SAFENET_DRV_PATH) modules
-
-safenet_drv_clean:
-	$(API_MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
-		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
-		M=$(SAFENET_DRV_PATH) clean
 #
 # The below rules are for the Android build system
 #-------------------------------------------------
@@ -332,20 +326,18 @@ $(INSTALLED_KERNEL_TARGET): $(TARGET_PREBUILT_KERNEL) | $(ACP)
 # dummy.ko is used for system image dependency
 TARGET_DUMMY_MODULE := $(MOTO_MOD_INSTALL)/dummy.ko
 ALL_PREBUILT += $(TARGET_DUMMY_MODULE)
-$(TARGET_DUMMY_MODULE): kernel_modules_install kernel
+$(TARGET_DUMMY_MODULE): kernel_modules_install
 	$(API_MAKE) -C $(WLAN_DRV_PATH)
 	$(API_MAKE) -C $(WLAN_AP_DRV_PATH)
-	$(API_MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
-		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
-		M=$(SAFENET_DRV_PATH) modules
 	mkdir -p $(MOTO_MOD_INSTALL)
 	rm -f $(MOTO_MOD_INSTALL)/dummy.ko
 	find $(KERNEL_BUILD_DIR)/lib/modules -name "*.ko" -exec cp -f {} \
 		$(MOTO_MOD_INSTALL) \; || true
 	cp $(WLAN_DRV_PATH)/tiwlan_drv.ko $(MOTO_MOD_INSTALL)
 	cp $(WLAN_AP_DRV_PATH)/tiap_drv.ko $(MOTO_MOD_INSTALL)
-	cp $(SAFENET_DRV_PATH)/vpnclient.ko $(MOTO_MOD_INSTALL)
 	$(KERNEL_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
 	touch $(MOTO_MOD_INSTALL)/dummy.ko
 
 ROOTDIR :=
+
+endif #platform
