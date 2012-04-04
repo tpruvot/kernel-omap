@@ -74,10 +74,27 @@ ifeq ($(DEPMOD),)
 	DEPMOD := $(shell which depmod 2> /dev/null || echo $(HOST_OUT_EXECUTABLES)/depmod$(HOST_EXECUTABLE_SUFFIX))
 endif
 
-KERNEL_SRC_DIR         := $(ROOTDIR)kernel
+###############################################################################
+# Adjust Settings here if required, or in your BoardConfig.mk
+###############################################################################
+
+ifeq ($(KERNEL_SRC_DIR),)
+    KERNEL_SRC_DIR := $(ROOTDIR)kernel
+endif
+
+# Default board defconfig (without defconfig suffix)
+ifeq ($(BLD_CONF),)
+    BLD_CONF=mapphone_mb525
+endif
+
+# Can be used in modules makefiles :
+# EXTRA_CFLAGS += -DUTS_RELEASE=\\\"2.6.32.9\\\"
+###############################################################################
+
+KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
+
 KERNEL_BUILD_DIR       := $(ROOTDIR)$(PRODUCT_OUT)/obj/PARTITIONS/kernel_intermediates/build
 TARGET_PREBUILT_KERNEL := $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
-KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
 
 KERNEL_WARN_FILTER := $(KERNEL_SRC_DIR)/scripts/gcc_warn_filter.cfg
 KERNEL_ERR_LOG     := $(KERNEL_BUILD_DIR)/.kbld_err_log.txt
@@ -100,8 +117,9 @@ WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
 # WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
 # WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
 
-GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
-#inst_hook: $(GIT_HOOKS_DIR)/pre-commit $(GIT_HOOKS_DIR)/checkpatch.pl
+# Disabled, this is made to force proper syntax commits (spaces etc)
+# GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
+# inst_hook: $(GIT_HOOKS_DIR)/pre-commit $(GIT_HOOKS_DIR)/checkpatch.pl
 inst_hook:
 
 $(GIT_HOOKS_DIR)/pre-commit: $(KERNEL_SRC_DIR)/scripts/pre-commit
@@ -111,8 +129,6 @@ $(GIT_HOOKS_DIR)/pre-commit: $(KERNEL_SRC_DIR)/scripts/pre-commit
 $(GIT_HOOKS_DIR)/checkpatch.pl: $(KERNEL_SRC_DIR)/scripts/checkpatch.pl
 	@-cp -f $< $@
 	@-chmod ugo+x $@
-
-BLD_CONF=mapphone
 
 ifneq ($(BLD_CONF),)
 PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/$(BLD_CONF)_defconfig
@@ -125,21 +141,18 @@ endif
 
 #Turn on kernel engineering build as default when TARGET_BUILD_VARIANT is eng, to disable it, add ENG_BLD=0 in build command
 ifeq ($(TARGET_BUILD_VARIANT), user)
-ENG_BLD := 0
+        ENG_BLD := 0
 else
-ENG_BLD := 1
+        ENG_BLD := 1
 endif
 
 #Disabled, kernel is prod
 ENG_BLD := 0
 
-#Can be used in modules makefiles :
-#EXTRA_CFLAGS += -DUTS_RELEASE=\\\"2.6.32.9\\\"
-
 ifeq ($(ENG_BLD), 1)
-PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/eng_bld.config
+        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/eng_bld.config
 else
-PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/user_bld.config
+        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/user_bld.config
 endif
 
 ifeq ($(TEST_DRV_CER), 1)
@@ -212,9 +225,9 @@ $(KERNEL_FFLAG): $(KERNEL_WARN_FILTER) | $(KERNEL_BUILD_DIR)
 	@touch $(KERNEL_FFLAG)
 
 ## fail building if there are unfiltered warnings
-## bypass if TEST_MUDFLAP is 1
+## bypassed except if KERNEL_CHECK_GCC_WARNINGS is 1
 # $(1): input log file
-ifeq ($(TEST_MUDFLAP),1)
+ifeq ($(KERNEL_CHECK_GCC_WARNINGS),)
 define kernel-check-gcc-warnings
 endef
 else
@@ -233,6 +246,7 @@ endif
 # We need to check warning no matter if build passed, failed or interuptted
 .PHONY: kernel
 kernel: $(CONFIG_OUT)
+	@echo -e ${CL_PFX}"kernel"${CL_RST}
 	$(call kernel-check-gcc-warnings, $(KERNEL_ERR_LOG))
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
@@ -245,6 +259,7 @@ kernel: $(CONFIG_OUT)
 # We need to check warning no matter if build passed, failed or interuptted
 .PHONY: kernel_modules
 kernel_modules: $(CONFIG_OUT) | $(DEPMOD)
+	@echo -e ${CL_PFX}"kernel_modules"${CL_RST}
 	$(call kernel-check-gcc-warnings, $(KMOD_ERR_LOG))
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
@@ -256,6 +271,7 @@ kernel_modules: $(CONFIG_OUT) | $(DEPMOD)
 # It is useful for build specific module with extra options
 # (e.g. TEST_DRV_CER)
 kernel_dir:
+	@echo -e ${CL_PFX}"kernel_dir"${CL_RST}
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) $(DIR_TO_BLD)
@@ -263,6 +279,7 @@ kernel_dir:
 #NOTE: "strip" MUST be done for generated .ko files!!!
 .PHONY: kernel_modules_install
 kernel_modules_install: kernel_modules | $(DEPMOD)
+	@echo -e ${CL_PFX}"kernel_modules_install"${CL_RST}
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) \
@@ -271,6 +288,7 @@ kernel_modules_install: kernel_modules | $(DEPMOD)
 		modules_install
 
 kernel_clean:
+	@echo -e ${CL_PFX}"kernel_clean"${CL_RST}
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) mrproper
@@ -333,13 +351,23 @@ jordan_modules:
 
 jordan_modules_clean:
 	$(API_MAKE) -C $(ROOTDIR)device/motorola/jordan/modules clean
-#
+
+device_modules:
+	$(API_MAKE) -C $(BOARD_EXT_MODULES_PATH) modules
+
+device_modules_clean:
+	$(API_MAKE) -C $(BOARD_EXT_MODULES_PATH) clean
+
+
 # install kernel modules into system image
 #-----------------------------------------
 # dummy.ko is used for system image dependency
+# should be changed for ICS tree, ALL_PREBUILT is forbidden.
+
 TARGET_DUMMY_MODULE := $(MOTO_MOD_INSTALL)/dummy.ko
 ALL_PREBUILT += $(TARGET_DUMMY_MODULE)
 $(TARGET_DUMMY_MODULE): kernel_modules_install
+	@echo -e ${CL_PFX}"Install kernel and modules..."${CL_RST}
 	$(API_MAKE) -C $(WLAN_DRV_PATH)
 	$(API_MAKE) -C $(WLAN_AP_DRV_PATH)
 	mkdir -p $(MOTO_MOD_INSTALL)
