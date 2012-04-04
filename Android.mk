@@ -78,13 +78,17 @@ endif
 # Adjust Settings here if required, or in your BoardConfig.mk
 ###############################################################################
 
-ifeq ($(KERNEL_SRC_DIR),)
+ifeq ($(TARGET_KERNEL_SOURCE),)
     KERNEL_SRC_DIR := $(ROOTDIR)kernel
+else
+    KERNEL_SRC_DIR := $(TARGET_KERNEL_SOURCE)
 endif
 
 # Default board defconfig (without defconfig suffix)
-ifeq ($(BLD_CONF),)
+ifeq ($(TARGET_KERNEL_CONFIG),)
     BLD_CONF=mapphone_mb525
+else
+    BLD_CONF=$(TARGET_KERNEL_CONFIG)
 endif
 
 # Can be used in modules makefiles :
@@ -347,17 +351,17 @@ $(TARGET_PREBUILT_KERNEL): kernel
 $(INSTALLED_KERNEL_TARGET): $(TARGET_PREBUILT_KERNEL) | $(ACP)
 	$(transform-prebuilt-to-target)
 
-jordan_modules:
+jordan_modules: $(CONFIG_OUT)
 	$(API_MAKE) -C $(ROOTDIR)device/motorola/jordan/modules modules
 
 jordan_modules_clean:
 	$(API_MAKE) -C $(ROOTDIR)device/motorola/jordan/modules clean
 
-device_modules:
-	$(API_MAKE) -C $(BOARD_EXT_MODULES_PATH) modules
+device_modules: $(CONFIG_OUT)
+	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) modules
 
 device_modules_clean:
-	$(API_MAKE) -C $(BOARD_EXT_MODULES_PATH) clean
+	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) clean
 
 
 # install kernel modules into system image
