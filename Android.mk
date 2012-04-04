@@ -315,6 +315,7 @@ ext_kernel_modules_clean: tiwlan_drv_clean tiap_drv_clean jordan_modules_clean
 #API_MAKE = env -u MAKECMDGOALS make PREFIX=$(KERNEL_BUILD_DIR) \
 
 API_MAKE = make PREFIX=$(KERNEL_BUILD_DIR) \
+		ARCH=arm \
 		CROSS=$(KERNEL_CROSS_COMPILE) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		PROCFAMILY=OMAP_3430 PROJROOT=$(PROJROOT) \
