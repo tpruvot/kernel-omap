@@ -84,9 +84,6 @@ KERNEL_ERR_LOG     := $(KERNEL_BUILD_DIR)/.kbld_err_log.txt
 KMOD_ERR_LOG       := $(KERNEL_BUILD_DIR)/.kmod_err_log.txt
 KERNEL_FFLAG       := $(KERNEL_BUILD_DIR)/.filter_ok.txt
 
-# ignore warnings
-TEST_MUDFLAP := true
-
 DEFCONFIGSRC                := ${KERNEL_SRC_DIR}/arch/arm/configs
 LJAPDEFCONFIGSRC            := ${DEFCONFIGSRC}/ext_config
 PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/mapphone_mb525_defconfig
@@ -94,8 +91,14 @@ _TARGET_DEFCONFIG           := __ext_mapphone_defconfig
 TARGET_DEFCONFIG            := $(DEFCONFIGSRC)/$(_TARGET_DEFCONFIG)
 
 MOTO_MOD_INSTALL := $(TARGET_OUT)/lib/modules
+
+# Moto/CyanogenDefy tiwlan
 WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
 WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
+
+# CyanogenMod tiwlan
+WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
+WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
 
 GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
 #inst_hook: $(GIT_HOOKS_DIR)/pre-commit $(GIT_HOOKS_DIR)/checkpatch.pl
@@ -129,6 +132,9 @@ endif
 
 #Disabled, kernel is prod
 ENG_BLD := 0
+
+#Can be used in modules makefiles :
+#EXTRA_CFLAGS += -DUTS_RELEASE=\\\"2.6.32.9\\\"
 
 ifeq ($(ENG_BLD), 1)
 PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/eng_bld.config
@@ -295,6 +301,7 @@ API_MAKE = make PREFIX=$(KERNEL_BUILD_DIR) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		PROCFAMILY=OMAP_3430 PROJROOT=$(PROJROOT) \
 		HOST_PLATFORM=zoom2 \
+		PROPRIETARY_SDIO=y \
 		KRNLSRC=$(KERNEL_SRC_DIR) KERNEL_DIR=$(KERNEL_BUILD_DIR)
 
 tiwlan_drv: $(CONFIG_OUT)
