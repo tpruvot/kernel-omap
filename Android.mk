@@ -370,7 +370,7 @@ device_modules_clean:
 # should be changed for ICS tree, ALL_PREBUILT is forbidden.
 
 TARGET_DUMMY_MODULE := $(MOTO_MOD_INSTALL)/dummy.ko
-ALL_PREBUILT += $(TARGET_DUMMY_MODULE)
+#ALL_PREBUILT += $(TARGET_DUMMY_MODULE)
 $(TARGET_DUMMY_MODULE): kernel_modules_install
 	@echo -e ${CL_PFX}"Install kernel and modules..."${CL_RST}
 	$(API_MAKE) -C $(WLAN_DRV_PATH)
