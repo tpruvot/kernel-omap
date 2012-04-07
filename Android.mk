@@ -1,4 +1,5 @@
-ifeq ($(TARGET_BOARD_PLATFORM),omap3)
+# ifeq ($(TARGET_BOARD_PLATFORM),omap3)
+ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),jordan)
 
 # Copyright (C) 2009 Motorola, Inc.
 # Copyright (C) 2011 CyanogenMod Project
@@ -36,7 +37,9 @@ ifeq ($(TARGET_BOARD_PLATFORM),omap3)
 ######################################################################
 #set -x
 
-ROOTDIR := $(shell pwd -P)/
+# ROOTDIR := $(shell pwd -P)/
+
+ROOTDIR := $(ANDROID_BUILD_TOP)/
 
 ifneq ($(strip $(TOPDIR)),)
     ROOTDIR := $(TOPDIR)
@@ -113,6 +116,8 @@ TARGET_DEFCONFIG            := $(DEFCONFIGSRC)/$(_TARGET_DEFCONFIG)
 
 MOTO_MOD_INSTALL := $(TARGET_OUT)/lib/modules
 
+###############################################################################
+
 # Moto/CyanogenDefy tiwlan
 WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
 WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
@@ -120,6 +125,8 @@ WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
 # CyanogenMod tiwlan (build fine but doesnt works well)
 # WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
 # WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
+
+###############################################################################
 
 # Disabled, this is made to force proper syntax commits (spaces etc)
 # GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
