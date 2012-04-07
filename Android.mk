@@ -79,7 +79,7 @@ endif
 ###############################################################################
 
 ifeq ($(TARGET_KERNEL_SOURCE),)
-    KERNEL_SRC_DIR := $(ROOTDIR)kernel
+    KERNEL_SRC_DIR := $(ROOTDIR)kernel/moto/mb525
 else
     KERNEL_SRC_DIR := $(TARGET_KERNEL_SOURCE)
 endif
@@ -97,7 +97,7 @@ endif
 
 KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
 
-KERNEL_BUILD_DIR       := $(ROOTDIR)$(PRODUCT_OUT)/obj/PARTITIONS/kernel_intermediates/build
+KERNEL_BUILD_DIR       := $(ROOTDIR)$(PRODUCT_OUT)/obj/kernel_intermediates/build
 TARGET_PREBUILT_KERNEL := $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
 
 KERNEL_WARN_FILTER := $(KERNEL_SRC_DIR)/scripts/gcc_warn_filter.cfg
