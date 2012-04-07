@@ -37,44 +37,38 @@ ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),jordan)
 ######################################################################
 #set -x
 
-# ROOTDIR := $(shell pwd -P)/
-
 ROOTDIR := $(ANDROID_BUILD_TOP)/
 
 ifneq ($(strip $(TOPDIR)),)
     ROOTDIR := $(TOPDIR)
 endif
 
-ifeq ($(KERNEL_CROSS_COMPILE),)
-	KERNEL_CROSS_COMPILE=$(ROOTDIR)$(TARGET_TOOLS_PREFIX)
-endif
-
 ifeq ($(TARGET_PRODUCT),)
-	TARGET_PRODUCT := generic
+    TARGET_PRODUCT := generic
 endif
 
 ifeq ($(PRODUCT_OUT),)
-	PRODUCT_OUT := out/target/product/$(TARGET_PRODUCT)
+    PRODUCT_OUT := out/target/product/$(TARGET_PRODUCT)
 endif
 
 ifeq ($(TARGET_OUT),)
-	TARGET_OUT := $(PRODUCT_OUT)/system
+    TARGET_OUT := $(PRODUCT_OUT)/system
 endif
 
 ifeq ($(HOST_PREBUILT_TAG),)
-	HOST_PREBUILT_TAG := linux-x86
+    HOST_PREBUILT_TAG := linux-x86
 endif
 
 ifeq ($(TARGET_BUILD_VARIANT),)
-	TARGET_BUILD_VARIANT := user
+    TARGET_BUILD_VARIANT := user
 endif
 
 ifeq ($(HOST_OUT_EXECUTABLES),)
-	HOST_OUT_EXECUTABLES := out/host/$(HOST_PREBUILT_TAG)/bin
+    HOST_OUT_EXECUTABLES := out/host/$(HOST_PREBUILT_TAG)/bin
 endif
 
 ifeq ($(DEPMOD),)
-	DEPMOD := $(shell which depmod 2> /dev/null || echo $(HOST_OUT_EXECUTABLES)/depmod$(HOST_EXECUTABLE_SUFFIX))
+    DEPMOD := $(shell which depmod 2> /dev/null || echo $(HOST_OUT_EXECUTABLES)/depmod$(HOST_EXECUTABLE_SUFFIX))
 endif
 
 ###############################################################################
@@ -103,11 +97,6 @@ KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-
 KERNEL_BUILD_DIR       := $(ROOTDIR)$(PRODUCT_OUT)/obj/kernel_intermediates/build
 TARGET_PREBUILT_KERNEL := $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
 
-KERNEL_WARN_FILTER := $(KERNEL_SRC_DIR)/scripts/gcc_warn_filter.cfg
-KERNEL_ERR_LOG     := $(KERNEL_BUILD_DIR)/.kbld_err_log.txt
-KMOD_ERR_LOG       := $(KERNEL_BUILD_DIR)/.kmod_err_log.txt
-KERNEL_FFLAG       := $(KERNEL_BUILD_DIR)/.filter_ok.txt
-
 DEFCONFIGSRC                := ${KERNEL_SRC_DIR}/arch/arm/configs
 LJAPDEFCONFIGSRC            := ${DEFCONFIGSRC}/ext_config
 PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/mapphone_mb525_defconfig
@@ -119,14 +108,19 @@ MOTO_MOD_INSTALL := $(TARGET_OUT)/lib/modules
 ###############################################################################
 
 # Moto/CyanogenDefy tiwlan
-WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
-WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
+# WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
+# WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
 
 # CyanogenMod tiwlan (build fine but doesnt works well)
-# WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
-# WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
+WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
+WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
 
 ###############################################################################
+
+KERNEL_WARN_FILTER := $(KERNEL_SRC_DIR)/scripts/gcc_warn_filter.cfg
+KERNEL_ERR_LOG     := $(KERNEL_BUILD_DIR)/.kbld_err_log.txt
+KMOD_ERR_LOG       := $(KERNEL_BUILD_DIR)/.kmod_err_log.txt
+KERNEL_FFLAG       := $(KERNEL_BUILD_DIR)/.filter_ok.txt
 
 # Disabled, this is made to force proper syntax commits (spaces etc)
 # GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
@@ -142,59 +136,55 @@ $(GIT_HOOKS_DIR)/checkpatch.pl: $(KERNEL_SRC_DIR)/scripts/checkpatch.pl
 	@-chmod ugo+x $@
 
 ifneq ($(BLD_CONF),)
-PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/$(BLD_CONF)_defconfig
+    PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/$(BLD_CONF)_defconfig
 endif
 
 ifneq ($(PRODUCT),)
-PRODUCT_SPECIFIC_DEFCONFIGS += \
-    ${LJAPDEFCONFIGSRC}/product/${PRODUCT}.config
+    PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/product/${PRODUCT}.config
 endif
 
-#Turn on kernel engineering build as default when TARGET_BUILD_VARIANT is eng, to disable it, add ENG_BLD=0 in build command
+# Turn on kernel engineering build as default when TARGET_BUILD_VARIANT is eng
+# to disable it, add ENG_BLD=0 in build command
 ifeq ($(TARGET_BUILD_VARIANT), user)
-        ENG_BLD := 0
+    ENG_BLD := 0
 else
-        ENG_BLD := 1
+    ENG_BLD := 1
 endif
 
-#Disabled, kernel is prod
+# Disabled, signed kernel are prod
 ENG_BLD := 0
 
 ifeq ($(ENG_BLD), 1)
-        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/eng_bld.config
+    PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/eng_bld.config
 else
-        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/user_bld.config
+    PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/user_bld.config
 endif
 
 ifeq ($(TEST_DRV_CER), 1)
-        ifeq ($(TEST_COVERAGE),)
-                TEST_COVERAGE=1
-        endif
-
-        ifeq ($(TEST_KMEMLEAK),)
-                TEST_KMEMLEAK=1
-        endif
-
-        ifeq ($(TEST_FAULTINJECT),)
-                TEST_FAULTINJECT=1
-        endif
+    ifeq ($(TEST_COVERAGE),)
+            TEST_COVERAGE=1
+    endif
+    ifeq ($(TEST_KMEMLEAK),)
+            TEST_KMEMLEAK=1
+    endif
+    ifeq ($(TEST_FAULTINJECT),)
+            TEST_FAULTINJECT=1
+    endif
 endif
 
-# Option to enable or disable gcov
+# Optional debug features
 ifeq ($(TEST_COVERAGE),1)
-        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/coverage.config
+    # Option to enable or disable gcov
+    PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/coverage.config
 endif
-
 ifeq ($(TEST_KMEMLEAK),1)
-        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/kmemleak.config
+    PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/kmemleak.config
 endif
-
 ifeq ($(TEST_FAULTINJECT),1)
-        PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/faultinject.config
+    PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/faultinject.config
 endif
-
 ifeq ($(TEST_MUDFLAP),1)
-         PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/mudflap.config
+    PRODUCT_SPECIFIC_DEFCONFIGS += ${LJAPDEFCONFIGSRC}/feature/mudflap.config
 endif
 
 #
