@@ -83,7 +83,7 @@ endif
 
 # Default board defconfig (without defconfig suffix)
 ifeq ($(TARGET_KERNEL_CONFIG),)
-    BLD_CONF=mapphone_mb525
+    BLD_CONF=mapphone_mb525_defconfig
 else
     BLD_CONF=$(TARGET_KERNEL_CONFIG)
 endif
@@ -94,8 +94,8 @@ endif
 
 KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
 
-KERNEL_BUILD_DIR       := $(ROOTDIR)$(PRODUCT_OUT)/obj/kernel_intermediates/build
-TARGET_PREBUILT_KERNEL := $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
+KERNEL_BUILD_DIR       := $(ANDROID_BUILD_TOP)/$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
+TARGET_PREBUILT_KERNEL ?= $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
 
 DEFCONFIGSRC                := ${KERNEL_SRC_DIR}/arch/arm/configs
 LJAPDEFCONFIGSRC            := ${DEFCONFIGSRC}/ext_config
@@ -136,7 +136,7 @@ $(GIT_HOOKS_DIR)/checkpatch.pl: $(KERNEL_SRC_DIR)/scripts/checkpatch.pl
 	@-chmod ugo+x $@
 
 ifneq ($(BLD_CONF),)
-    PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/$(BLD_CONF)_defconfig
+    PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/$(BLD_CONF)
 endif
 
 ifneq ($(PRODUCT),)
@@ -341,9 +341,9 @@ tiap_drv_clean:
 #-------------------------------------------------
 ifneq ($(DO_NOT_REBUILD_THE_KERNEL),1)
 .PHONY: $(TARGET_PREBUILT_KERNEL)
-endif
 
 $(TARGET_PREBUILT_KERNEL): kernel
+endif
 
 $(INSTALLED_KERNEL_TARGET): $(TARGET_PREBUILT_KERNEL) | $(ACP)
 	$(transform-prebuilt-to-target)
@@ -366,8 +366,9 @@ device_modules_clean:
 # dummy.ko is used for system image dependency
 # should be changed for ICS tree, ALL_PREBUILT is forbidden.
 
-TARGET_DUMMY_MODULE := $(MOTO_MOD_INSTALL)/dummy.ko
+TARGET_DUMMY_MODULE ?= $(MOTO_MOD_INSTALL)/dummy.ko
 #ALL_PREBUILT += $(TARGET_DUMMY_MODULE)
+
 $(TARGET_DUMMY_MODULE): kernel_modules_install
 	@echo -e ${CL_PFX}"Install kernel and modules..."${CL_RST}
 	$(API_MAKE) -C $(WLAN_DRV_PATH)
