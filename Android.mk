@@ -6,25 +6,12 @@ ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),jordan)
 #
 #####################################################################
 #
-# Script creation notes by: David Ding (dding@motorola.com)
-# (THIS DESCRIPTION IS NOW OBSOLETE: SEE UPDATE BELOW)
-#
 # The intention of creating this script is for Moto-Android platform
 # common Kernel and kernel modules developer to make kernel zImage and
-# driver modules .ko objects. As long as it is in your execution $PATH
-# you can place this script anywhere you may preferred. A suggestion
-# place can be in $HOME/bin directory, then make PATH=$PATH:$HOME/bin
+# driver modules .ko objects.
 #
 # How to use:
 # -----------
-# $ cd {top-moto-android-working-dir}
-# $ build_kernel
-#
-# if you are in the wrong place to start your kernel/module build
-# script will quit and reminder you go to the RIGHT place to build
-#
-# UPDATE: 11/21/2009: wqnt78
-#
 # This makefile is now invoked from kernel/Android.mk. You may build
 # the kernel and modules by using the "kernel" target:
 #
@@ -74,18 +61,37 @@ endif
 ###############################################################################
 # Adjust Settings here if required, or in your BoardConfig.mk
 ###############################################################################
+# Beware : do not use these board config vars (cm9 kernel.mk is not compatible)
 
-ifeq ($(TARGET_KERNEL_SOURCE),)
-    KERNEL_SRC_DIR := $(ROOTDIR)kernel/moto/mb525
-else
+ifneq ($(TARGET_KERNEL_SOURCE),)
     KERNEL_SRC_DIR := $(TARGET_KERNEL_SOURCE)
 endif
 
 # Default board defconfig (without defconfig suffix)
-ifeq ($(TARGET_KERNEL_CONFIG),)
-    BLD_CONF=mapphone_mb525_defconfig
-else
+ifneq ($(TARGET_KERNEL_CONFIG),)
     BLD_CONF=$(TARGET_KERNEL_CONFIG)
+endif
+
+##############################################################################
+# Use these var instead in BoardConfig
+
+ifneq ($(MOTO_KERNEL_SOURCE),)
+    KERNEL_SRC_DIR := $(MOTO_KERNEL_SOURCE)
+endif
+
+# Default board defconfig (without defconfig suffix)
+ifneq ($(MOTO_KERNEL_CONFIG),)
+    BLD_CONF=$(MOTO_KERNEL_CONFIG)
+endif
+
+###############################################################################
+# Default values if not set
+
+ifeq ($(BLD_CONF),)
+    BLD_CONF=mapphone_mb525_defconfig
+endif
+ifeq ($(KERNEL_SRC_DIR),)
+    KERNEL_SRC_DIR := $(ROOTDIR)kernel/moto/mb525
 endif
 
 # Can be used in modules makefiles :
@@ -103,7 +109,14 @@ PRODUCT_SPECIFIC_DEFCONFIGS := $(DEFCONFIGSRC)/mapphone_mb525_defconfig
 _TARGET_DEFCONFIG           := __ext_mapphone_defconfig
 TARGET_DEFCONFIG            := $(DEFCONFIGSRC)/$(_TARGET_DEFCONFIG)
 
-MOTO_MOD_INSTALL := $(TARGET_OUT)/lib/modules
+###############################################################################
+# if this variable is set, its called by cm9 kernel build system
+
+ifneq ($(KERNEL_MODULES_OUT),)
+    MOTO_MOD_INSTALL := $(KERNEL_MODULES_OUT)
+else
+    MOTO_MOD_INSTALL := $(TARGET_OUT)/lib/modules
+endif
 
 ###############################################################################
 
@@ -219,10 +232,12 @@ $(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) inst_hook | $(KERNEL_BUILD_DI
 # clean if warn filter changed
 #-----------------------------
 $(KERNEL_FFLAG): $(KERNEL_WARN_FILTER) | $(KERNEL_BUILD_DIR)
+ifeq ($(KERNEL_CHECK_GCC_WARNINGS),1)
 	@echo "Gcc warning filter changed, clean build will be enforced\n"
 	$(MAKE) -j1 -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
                  CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
                  O=$(KERNEL_BUILD_DIR) clean
+endif
 	@touch $(KERNEL_FFLAG)
 
 ## fail building if there are unfiltered warnings
@@ -295,21 +310,19 @@ kernel_clean:
 		O=$(KERNEL_BUILD_DIR) mrproper
 	@rm -rf $(KERNEL_SRC_DIR)/include/config
 	@rm -f $(TARGET_DEFCONFIG)
-	@rm -f $(KERNEL_BUILD_DIR)/.*.txt
+	@-rm -rf $(KERNEL_BUILD_DIR)
+	@-rm -rf $(MOTO_MOD_INSTALL)
 
 #
 #----------------------------------------------------------------------------
-# To use "make ext_modules" to buld external kernel modules
+# external kernel modules
+# NOTE: "strip" MUST then be done for generated .ko files
 #----------------------------------------------------------------------------
-# build external kernel modules
-#
-# NOTE: "strip" MUST be done for generated .ko files!!!
-# =============================
+
 .PHONY: ext_kernel_modules
-ext_kernel_modules: tiwlan_drv tiap_drv jordan_modules
+ext_kernel_modules: tiwlan_drv tiap_drv device_modules
 
-ext_kernel_modules_clean: tiwlan_drv_clean tiap_drv_clean jordan_modules_clean
-
+ext_kernel_modules_clean: tiwlan_drv_clean tiap_drv_clean device_modules_clean
 
 # wlan driver module
 #-------------------
@@ -323,6 +336,7 @@ API_MAKE = make PREFIX=$(KERNEL_BUILD_DIR) \
 		HOST_PLATFORM=zoom2 \
 		PROPRIETARY_SDIO=y \
 		KRNLSRC=$(KERNEL_SRC_DIR) KERNEL_DIR=$(KERNEL_BUILD_DIR)
+
 
 tiwlan_drv: $(CONFIG_OUT)
 	$(API_MAKE) -C $(WLAN_DRV_PATH)
@@ -338,52 +352,39 @@ tiap_drv_clean:
 
 #
 # The below rules are for the Android build system
-#-------------------------------------------------
-ifneq ($(DO_NOT_REBUILD_THE_KERNEL),1)
-.PHONY: $(TARGET_PREBUILT_KERNEL)
+#----------------------------------------------------------------------------
 
+ifneq ($(DO_NOT_REBUILD_THE_KERNEL),1)
+
+.PHONY: $(TARGET_PREBUILT_KERNEL)
 $(TARGET_PREBUILT_KERNEL): kernel
+
 endif
 
 $(INSTALLED_KERNEL_TARGET): $(TARGET_PREBUILT_KERNEL) | $(ACP)
 	$(transform-prebuilt-to-target)
 
-jordan_modules: $(CONFIG_OUT)
-	$(API_MAKE) -C $(ROOTDIR)device/motorola/jordan/modules modules
-
-jordan_modules_clean:
-	$(API_MAKE) -C $(ROOTDIR)device/motorola/jordan/modules clean
+#----------------------------------------------------------------------------
 
 device_modules: $(CONFIG_OUT)
 	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) modules
+	mkdir -p $(MOTO_MOD_INSTALL)
+	find $(TARGET_KERNEL_MODULES_EXT)/ -name "*.ko" -exec mv {} \
+		$(MOTO_MOD_INSTALL) \; || true
 
 device_modules_clean:
 	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) clean
 
+#----------------------------------------------------------------------------
 
-# install kernel modules into system image (deprecated)
-#------------------------------------------------------
-# dummy.ko is used for system image dependency
-# should be changed for ICS tree, ALL_PREBUILT is forbidden.
-
-ifdef DUMMY_MODULE_STUFF
-TARGET_DUMMY_MODULE ?= $(MOTO_MOD_INSTALL)/dummy.ko
-#ALL_PREBUILT += $(TARGET_DUMMY_MODULE)
-
-$(TARGET_DUMMY_MODULE): kernel_modules_install
-	@echo -e ${CL_PFX}"Install kernel and modules..."${CL_RST}
-	$(API_MAKE) -C $(WLAN_DRV_PATH)
-	$(API_MAKE) -C $(WLAN_AP_DRV_PATH)
+#.PHONY: strip_modules
+strip_modules: $(CONFIG_OUT) $(DEPMOD) kernel_modules_install ext_kernel_modules
+	@echo -e ${CL_PFX}"Install and strip external modules..."${CL_RST}
 	mkdir -p $(MOTO_MOD_INSTALL)
-	rm -f $(MOTO_MOD_INSTALL)/dummy.ko
-	find $(KERNEL_BUILD_DIR)/lib/modules -name "*.ko" -exec cp -f {} \
-		$(MOTO_MOD_INSTALL) \; || true
 	cp $(WLAN_DRV_PATH)/tiwlan_drv.ko $(MOTO_MOD_INSTALL)
 	cp $(WLAN_AP_DRV_PATH)/tiap_drv.ko $(MOTO_MOD_INSTALL)
-	$(KERNEL_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
-	touch $(MOTO_MOD_INSTALL)/dummy.ko
+	-$(KERNEL_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
 
-endif
 ROOTDIR :=
 
 endif #platform

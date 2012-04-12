@@ -38,7 +38,7 @@
 #
 # ************************************************
 
-$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/kernel_intermediates)
+$(call add-clean-step, rm -rf $(PRODUCT_OUT)/obj/KERNEL_OBJ)
 
 $(call add-clean-step, rm -f $(PRODUCT_OUT)/kernel)
 $(call add-clean-step, rm -f $(PRODUCT_OUT)/*.img)
