@@ -209,7 +209,7 @@ CONFIG_OUT := $(KERNEL_BUILD_DIR)/.config
 kernel_config: $(CONFIG_OUT)
 $(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) inst_hook | $(KERNEL_BUILD_DIR)
 	@echo DEPMOD: $(DEPMOD)
-	$(MAKE) -j1 -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
+	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
 		O=$(KERNEL_BUILD_DIR) \
 		KBUILD_DEFCONFIG=$(_TARGET_DEFCONFIG) \
@@ -361,11 +361,12 @@ device_modules_clean:
 	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) clean
 
 
-# install kernel modules into system image
-#-----------------------------------------
+# install kernel modules into system image (deprecated)
+#------------------------------------------------------
 # dummy.ko is used for system image dependency
 # should be changed for ICS tree, ALL_PREBUILT is forbidden.
 
+ifdef DUMMY_MODULE_STUFF
 TARGET_DUMMY_MODULE ?= $(MOTO_MOD_INSTALL)/dummy.ko
 #ALL_PREBUILT += $(TARGET_DUMMY_MODULE)
 
@@ -382,6 +383,7 @@ $(TARGET_DUMMY_MODULE): kernel_modules_install
 	$(KERNEL_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
 	touch $(MOTO_MOD_INSTALL)/dummy.ko
 
+endif
 ROOTDIR :=
 
 endif #platform
