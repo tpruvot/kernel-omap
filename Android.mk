@@ -100,6 +100,10 @@ endif
 
 KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
 
+# future prebuilts
+#KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilts/gcc/$(HOST_PREBUILT_TAG)/arm/arm-linux-androideabi-4.6/bin/arm-linux-androideabi-
+#KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-linux-androideabi-4.4.x/bin/arm-linux-androideabi-
+
 KERNEL_BUILD_DIR       := $(ANDROID_BUILD_TOP)/$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
 TARGET_PREBUILT_KERNEL ?= $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
 
@@ -366,7 +370,7 @@ $(INSTALLED_KERNEL_TARGET): $(TARGET_PREBUILT_KERNEL) | $(ACP)
 
 #----------------------------------------------------------------------------
 
-device_modules: $(CONFIG_OUT)
+device_modules: $(CONFIG_OUT) $(TARGET_PREBUILT_KERNEL) $(DEPMOD)
 	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) modules
 	mkdir -p $(MOTO_MOD_INSTALL)
 	find $(TARGET_KERNEL_MODULES_EXT)/ -name "*.ko" -exec mv {} \
@@ -378,7 +382,7 @@ device_modules_clean:
 #----------------------------------------------------------------------------
 
 #.PHONY: strip_modules
-strip_modules: $(CONFIG_OUT) $(DEPMOD) kernel_modules_install ext_kernel_modules
+strip_modules: kernel_modules_install ext_kernel_modules
 	@echo -e ${CL_PFX}"Install and strip external modules..."${CL_RST}
 	mkdir -p $(MOTO_MOD_INSTALL)
 	cp $(WLAN_DRV_PATH)/tiwlan_drv.ko $(MOTO_MOD_INSTALL)
@@ -386,5 +390,7 @@ strip_modules: $(CONFIG_OUT) $(DEPMOD) kernel_modules_install ext_kernel_modules
 	-$(KERNEL_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
 
 ROOTDIR :=
+
+TARGET_KERNEL_MODULES := ext_kernel_modules strip_modules
 
 endif #platform
