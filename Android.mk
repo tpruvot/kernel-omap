@@ -98,11 +98,13 @@ endif
 # EXTRA_CFLAGS += -DUTS_RELEASE=\\\"2.6.32.9\\\"
 ###############################################################################
 
-KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
+# gingerbread and ics <= 4.0.4
+#KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
 
-# future prebuilts
-#KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilts/gcc/$(HOST_PREBUILT_TAG)/arm/arm-linux-androideabi-4.6/bin/arm-linux-androideabi-
+# future toolchains
+KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
 #KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-linux-androideabi-4.4.x/bin/arm-linux-androideabi-
+#KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilts/gcc/$(HOST_PREBUILT_TAG)/arm/arm-linux-androideabi-4.6/bin/arm-linux-androideabi-
 
 KERNEL_BUILD_DIR       := $(ANDROID_BUILD_TOP)/$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
 TARGET_PREBUILT_KERNEL ?= $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
@@ -125,12 +127,12 @@ endif
 ###############################################################################
 
 # Moto/CyanogenDefy tiwlan
-# WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
-# WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
+WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
+WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
 
 # CyanogenMod tiwlan (build fine but doesnt works well)
-WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
-WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
+# WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
+# WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
 
 ###############################################################################
 
