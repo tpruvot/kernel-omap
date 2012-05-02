@@ -1,4 +1,4 @@
-# ifeq ($(TARGET_BOARD_PLATFORM),omap3)
+ifeq ($(TARGET_BOARD_PLATFORM),omap3)
 ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),jordan)
 
 # Copyright (C) 2009 Motorola, Inc.
@@ -98,7 +98,9 @@ endif
 # EXTRA_CFLAGS += -DUTS_RELEASE=\\\"2.6.32.9\\\"
 ###############################################################################
 
-KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.0/bin/arm-eabi-
+#KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilts/gcc/$(HOST_PREBUILT_TAG)/arm/arm-linux-androideabi-4.6/bin/arm-linux-androideabi-
+KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
+MODULE_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
 
 KERNEL_BUILD_DIR       := $(ANDROID_BUILD_TOP)/$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
 TARGET_PREBUILT_KERNEL ?= $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
@@ -278,7 +280,7 @@ kernel_modules: $(CONFIG_OUT) | $(DEPMOD)
 	@echo -e ${CL_PFX}"kernel_modules"${CL_RST}
 	$(call kernel-check-gcc-warnings, $(KMOD_ERR_LOG))
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
-		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
+		CROSS_COMPILE=$(MODULE_CROSS_COMPILE) O=$(KERNEL_BUILD_DIR) \
 		DEPMOD=$(DEPMOD) INSTALL_MOD_PATH=$(KERNEL_BUILD_DIR) \
 		modules 2>&1 | tee $(KMOD_ERR_LOG)
 	$(call kernel-check-gcc-warnings, $(KMOD_ERR_LOG))
@@ -330,8 +332,8 @@ ext_kernel_modules_clean: tiwlan_drv_clean tiap_drv_clean device_modules_clean
 
 API_MAKE = make PREFIX=$(KERNEL_BUILD_DIR) \
 		ARCH=arm \
-		CROSS=$(KERNEL_CROSS_COMPILE) \
-		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
+		CROSS=$(MODULE_CROSS_COMPILE) \
+		CROSS_COMPILE=$(MODULE_CROSS_COMPILE) \
 		PROCFAMILY=OMAP_3430 PROJROOT=$(PROJROOT) \
 		HOST_PLATFORM=zoom2 \
 		PROPRIETARY_SDIO=y \
@@ -383,8 +385,9 @@ strip_modules: $(CONFIG_OUT) $(DEPMOD) kernel_modules_install ext_kernel_modules
 	mkdir -p $(MOTO_MOD_INSTALL)
 	cp $(WLAN_DRV_PATH)/tiwlan_drv.ko $(MOTO_MOD_INSTALL)
 	cp $(WLAN_AP_DRV_PATH)/tiap_drv.ko $(MOTO_MOD_INSTALL)
-	-$(KERNEL_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
+	-$(MODULE_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
 
 ROOTDIR :=
 
+endif #jordan
 endif #platform
