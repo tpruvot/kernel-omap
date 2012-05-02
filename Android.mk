@@ -1,6 +1,9 @@
 ifeq ($(TARGET_BOARD_PLATFORM),omap3)
 ifeq ($(TARGET_BOOTLOADER_BOARD_NAME),jordan)
 
+# Prevent conflict with CM9 kernel.mk build task
+ifeq ($(TARGET_AUTO_KDIR),)
+
 # Copyright (C) 2009 Motorola, Inc.
 # Copyright (C) 2011 CyanogenMod Project
 #
@@ -102,7 +105,7 @@ endif
 KERNEL_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
 MODULE_CROSS_COMPILE   := $(ROOTDIR)prebuilt/$(HOST_PREBUILT_TAG)/toolchain/arm-eabi-4.4.3/bin/arm-eabi-
 
-KERNEL_BUILD_DIR       := $(ANDROID_BUILD_TOP)/$(TARGET_OUT_INTERMEDIATES)/KERNEL_OBJ
+KERNEL_BUILD_DIR       := $(ANDROID_BUILD_TOP)/$(TARGET_OUT_INTERMEDIATES)/kernel_intermediates/build
 TARGET_PREBUILT_KERNEL ?= $(KERNEL_BUILD_DIR)/arch/arm/boot/zImage
 
 DEFCONFIGSRC                := ${KERNEL_SRC_DIR}/arch/arm/configs
@@ -388,6 +391,8 @@ strip_modules: $(CONFIG_OUT) $(DEPMOD) kernel_modules_install ext_kernel_modules
 	-$(MODULE_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
 
 ROOTDIR :=
+
+endif #TARGET_AUTO_KDIR
 
 endif #jordan
 endif #platform
