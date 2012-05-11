@@ -143,7 +143,8 @@ KERNEL_FFLAG       := $(KERNEL_BUILD_DIR)/.filter_ok.txt
 # Disabled, this is made to force proper syntax commits (spaces etc)
 # GIT_HOOKS_DIR := $(KERNEL_SRC_DIR)/.git/hooks
 # inst_hook: $(GIT_HOOKS_DIR)/pre-commit $(GIT_HOOKS_DIR)/checkpatch.pl
-inst_hook:
+
+git_hook := #inst_hook
 
 $(GIT_HOOKS_DIR)/pre-commit: $(KERNEL_SRC_DIR)/scripts/pre-commit
 	@-cp -f $< $@
@@ -225,7 +226,7 @@ FORCE:
 #--------------------------
 CONFIG_OUT := $(KERNEL_BUILD_DIR)/.config
 kernel_config: $(CONFIG_OUT)
-$(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) inst_hook | $(KERNEL_BUILD_DIR)
+$(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) $(git_hook) | $(KERNEL_BUILD_DIR)
 	@echo DEPMOD: $(DEPMOD)
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
 		CROSS_COMPILE=$(KERNEL_CROSS_COMPILE) \
