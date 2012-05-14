@@ -225,7 +225,6 @@ FORCE:
 # make kernel configuration
 #--------------------------
 CONFIG_OUT := $(KERNEL_BUILD_DIR)/.config
-kernel_config: $(CONFIG_OUT)
 $(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) $(git_hook) | $(KERNEL_BUILD_DIR)
 	@echo DEPMOD: $(DEPMOD)
 	$(MAKE) -C $(KERNEL_SRC_DIR) ARCH=arm $(KERN_FLAGS) \
@@ -233,6 +232,9 @@ $(CONFIG_OUT): $(TARGET_DEFCONFIG) $(KERNEL_FFLAG) $(git_hook) | $(KERNEL_BUILD_
 		O=$(KERNEL_BUILD_DIR) \
 		KBUILD_DEFCONFIG=$(_TARGET_DEFCONFIG) \
 		defconfig modules_prepare
+
+.PHONY: kernel_config
+kernel_config: $(CONFIG_OUT)
 
 #
 # clean if warn filter changed
