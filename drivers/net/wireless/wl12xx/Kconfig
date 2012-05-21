@@ -1,5 +1,6 @@
 menuconfig WL12XX_MENU
 	tristate "TI wl12xx driver support"
+	default y
 	depends on MAC80211 && EXPERIMENTAL
 	---help---
 	  This will enable TI wl12xx driver support for the following chips:
@@ -8,6 +9,7 @@ menuconfig WL12XX_MENU
 
 config WL12XX
 	tristate "TI wl12xx support"
+	default m
 	depends on WL12XX_MENU && GENERIC_HARDIRQS
 	depends on INET
 	select FW_LOADER
@@ -20,11 +22,11 @@ config WL12XX
 	  unsure.
 
 config WL12XX_HT
-        bool "TI wl12xx 802.11 HT support (EXPERIMENTAL)"
-        depends on WL12XX && EXPERIMENTAL
-        default n
-        ---help---
-          This will enable 802.11 HT support in the wl12xx module.
+	bool "TI wl12xx 802.11 HT support (EXPERIMENTAL)"
+	depends on WL12XX && EXPERIMENTAL
+	default y
+	---help---
+	  This will enable 802.11 HT support in the wl12xx module.
 
 	  That configuration is temporary due to the code incomplete and
 	  still in testing process.
@@ -33,6 +35,7 @@ config WL12XX_SPI
 	tristate "TI wl12xx SPI support"
 	depends on WL12XX && SPI_MASTER
 	select CRC7
+	default n
 	---help---
 	  This module adds support for the SPI interface of adapters using
 	  TI wl12xx chipsets.  Select this if your platform is using
@@ -44,6 +47,7 @@ config WL12XX_SPI
 config WL12XX_SDIO
 	tristate "TI wl12xx SDIO support"
 	depends on WL12XX && MMC
+	default m
 	---help---
 	  This module adds support for the SDIO interface of adapters using
 	  TI wl12xx chipsets.  Select this if your platform is using
@@ -65,4 +69,4 @@ config WL12XX_SDIO_TEST
 config WL12XX_PLATFORM_DATA
 	bool
 	depends on WL12XX_SDIO != n || WL1251_SDIO != n
-	default y
+	default n
