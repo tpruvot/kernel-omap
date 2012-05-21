@@ -112,6 +112,7 @@ config PCMCIA_NETWAVE
 
 menuconfig WLAN_80211
 	bool "Wireless LAN (IEEE 802.11)"
+	default y
 	depends on NETDEVICES
 	---help---
 	  Say Y if you have any 802.11 wireless LAN hardware.
