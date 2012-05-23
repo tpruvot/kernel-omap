@@ -377,7 +377,7 @@ $(INSTALLED_KERNEL_TARGET): $(TARGET_PREBUILT_KERNEL) | $(ACP)
 device_modules: $(CONFIG_OUT)
 	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) modules
 	mkdir -p $(MOTO_MOD_INSTALL)
-	find $(TARGET_KERNEL_MODULES_EXT)/ -name "*.ko" -exec mv {} \
+	find $(TARGET_KERNEL_MODULES_EXT)/ -name "*.ko" -exec cp {} \
 		$(MOTO_MOD_INSTALL) \; || true
 
 device_modules_clean:

@@ -44,6 +44,81 @@
 #define SDIO_DEVICE_ID_TI_WL1271	0x4076
 #endif
 
+/* Defy 2.6.32 compat */
+#ifndef CONFIG_WL12XX_PLATFORM_DATA
+
+/* GPIO 65 Translated to decimal irq nr is 225 */
+#define MAPPHONE_WIFI_IRQ_GPIO  65
+/* mapphone-hsmmc one */
+#define GPIO_SIGNAL_MMC_DET     163
+
+static void pdata_wifi_set_power(bool enable) {
+	int on = (enable) ? 1:0;
+
+	pr_notice("%s(%d) Not implemented !!!\n", __func__, on);
+	/* TODO: check wilink 6 host_platform.c and board-mapphone-wifi.c */
+}
+
+const struct wl12xx_platform_data wl12xx_pdata = {
+/*
+        void (*set_power)(bool enable);
+        // SDIO only: IRQ number if WLAN_IRQ line is used, 0 for SDIO IRQs
+        int irq;
+        bool use_eeprom;
+        int board_ref_clock;
+        int board_tcxo_clock;
+        unsigned long platform_quirks; // WL12XX_PLATFORM_QUIRK_EDGE_IRQ
+*/
+	.set_power = &pdata_wifi_set_power,
+	.irq = 94, //OMAP_GPIO_IRQ(MAPPHONE_WIFI_IRQ_GPIO), /* 0 to check, could be 94 too */
+	.use_eeprom = false,
+	.board_ref_clock = CONF_REF_CLK_26_E,
+	.board_tcxo_clock = WL12XX_TCXOCLOCK_32_736, /* to check */
+	.platform_quirks = 0,
+};
+/*
+	.name		= "wl1271",
+	.mmc		= 2,
+	.caps		= MMC_CAP_4_BIT_DATA | MMC_CAP_POWER_OFF_CARD,
+	.gpio_wp	= -EINVAL,
+	.gpio_cd	= -EINVAL,
+	.nonremovable	= true,
+*/
+#endif
+
+// linux/pm_runtime.h
+static inline bool pm_runtime_enabled(struct device *dev) {
+#ifdef CONFIG_PM_RUNTIME
+	return true;
+#else
+	return false;
+#endif
+}
+
+// linux/pm_wakeup.h
+#define pm_wakeup_event(d,n) device_set_wakeup_enable(d, true)
+
+/* linux/mmc/pm.h
+ *
+ * These flags are used to describe power management features that
+ * some cards (typically SDIO cards) might wish to benefit from when
+ * the host system is being suspended.  There are several layers of
+ * abstractions involved, from the host controller driver, to the MMC core
+ * code, to the SDIO core code, to finally get to the actual SDIO function
+ * driver.  This file is therefore used for common definitions shared across
+ * all those layers.
+ */
+
+typedef unsigned int mmc_pm_flag_t;
+
+#define MMC_PM_KEEP_POWER       (1 << 0)	/* preserve card power during suspend */
+#define MMC_PM_WAKE_SDIO_IRQ    (1 << 1)	/* wake up host system on SDIO IRQ assertion */
+#define MMC_PM_IGNORE_PM_NOTIFY (1 << 2)	/* ignore mmc pm notify */
+
+#define MMC_QUIRK_BLKSZ_FOR_BYTE_MODE (1<<1)	/* use func->cur_blksize */
+
+/* end of compat */
+
 static const struct sdio_device_id wl1271_devices[] __devinitconst = {
 	{ SDIO_DEVICE(SDIO_VENDOR_ID_TI, SDIO_DEVICE_ID_TI_WL1271) },
 	{}
@@ -168,7 +243,6 @@ static int wl1271_sdio_power_on(struct wl1271 *wl)
 {
 	struct sdio_func *func = wl_to_func(wl);
 	int ret;
-
 	/* If enabled, tell runtime PM not to power off the card */
 	if (pm_runtime_enabled(&func->dev)) {
 		ret = pm_runtime_get_sync(&func->dev);
@@ -176,9 +250,10 @@ static int wl1271_sdio_power_on(struct wl1271 *wl)
 			goto out;
 	} else {
 		/* Runtime PM is disabled: power up the card manually */
-		ret = mmc_power_restore_host(func->card->host);
-		if (ret < 0)
-			goto out;
+		//ret = mmc_power_restore_host(func->card->host);
+		//if (ret < 0)
+		//	goto out;
+		mmc_power_restore_host(func->card->host);
 	}
 
 	sdio_claim_host(func);
@@ -197,14 +272,14 @@ static int wl1271_sdio_power_off(struct wl1271 *wl)
 	sdio_release_host(func);
 
 	/* Power off the card manually, even if runtime PM is enabled. */
-	ret = mmc_power_save_host(func->card->host);
-	if (ret < 0)
-		return ret;
+	//ret = mmc_power_save_host(func->card->host);
+	//if (ret < 0)
+	//	return ret;
+	mmc_power_save_host(func->card->host);
 
 	/* If enabled, let runtime PM know the card is powered off */
 	if (pm_runtime_enabled(&func->dev))
 		ret = pm_runtime_put_sync(&func->dev);
-
 	return ret;
 }
 
@@ -255,7 +330,11 @@ static int __devinit wl1271_probe(struct sdio_func *func,
 	/* Use block mode for transferring over one block size of data */
 	func->card->quirks |= MMC_QUIRK_BLKSZ_FOR_BYTE_MODE;
 
+#ifdef CONFIG_WL12XX_PLATFORM_DATA
 	wlan_data = wl12xx_get_platform_data();
+#else
+	wlan_data = &wl12xx_pdata;
+#endif
 	if (IS_ERR(wlan_data)) {
 		ret = PTR_ERR(wlan_data);
 		wl1271_error("missing wlan platform data: %d", ret);
@@ -286,7 +365,7 @@ static int __devinit wl1271_probe(struct sdio_func *func,
 		device_init_wakeup(wl1271_sdio_wl_to_dev(wl), 1);
 
 		/* if sdio can keep power while host is suspended, enable wow */
-		mmcflags = sdio_get_host_pm_caps(func);
+		mmcflags = MMC_CAP_4_BIT_DATA;//sdio_get_host_pm_caps(func);
 		wl1271_debug(DEBUG_SDIO, "sdio PM caps = 0x%x", mmcflags);
 
 		if (mmcflags & MMC_PM_KEEP_POWER)
@@ -348,7 +427,7 @@ static int wl1271_suspend(struct device *dev)
 
 	/* check whether sdio should keep power */
 	if (wl->wow_enabled) {
-		sdio_flags = sdio_get_host_pm_caps(func);
+		sdio_flags = MMC_PM_KEEP_POWER;//sdio_get_host_pm_caps(func);
 
 		if (!(sdio_flags & MMC_PM_KEEP_POWER)) {
 			wl1271_error("can't keep power while host "
@@ -358,11 +437,11 @@ static int wl1271_suspend(struct device *dev)
 		}
 
 		/* keep power while host suspended */
-		ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
-		if (ret) {
-			wl1271_error("error while trying to keep power");
-			goto out;
-		}
+		//ret = sdio_set_host_pm_flags(func, MMC_PM_KEEP_POWER);
+		//if (ret) {
+		//	wl1271_error("error while trying to keep power");
+		//	goto out;
+		//}
 
 		/* release host */
 		sdio_release_host(func);

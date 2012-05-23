@@ -63,6 +63,8 @@ struct wl12xx_platform_data {
 
 int wl12xx_set_platform_data(const struct wl12xx_platform_data *data);
 
+const struct wl12xx_platform_data *wl12xx_get_platform_data(void);
+
 #else
 
 static inline
@@ -72,7 +74,5 @@ int wl12xx_set_platform_data(const struct wl12xx_platform_data *data)
 }
 
 #endif
-
-const struct wl12xx_platform_data *wl12xx_get_platform_data(void);
 
 #endif

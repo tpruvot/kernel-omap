@@ -24,6 +24,22 @@
 #ifndef __CONF_H__
 #define __CONF_H__
 
+/* Moto defy compat */
+#include <linux/version.h>
+
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36))
+
+#define create_freezable_workqueue create_freezeable_workqueue
+
+#define netdev_hw_addr_list_count(l) ((l)->count)
+#define netdev_hw_addr_list_empty(l) (netdev_hw_addr_list_count(l) == 0)
+#define netdev_hw_addr_list_for_each(ha, l) \
+	list_for_each_entry(ha, &(l)->list, list)
+
+#define kstrtoul strict_strtoul
+
+#endif /* end of compat defines */
+
 enum {
 	CONF_HW_BIT_RATE_1MBPS   = BIT(0),
 	CONF_HW_BIT_RATE_2MBPS   = BIT(1),
