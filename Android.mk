@@ -126,12 +126,12 @@ endif
 ###############################################################################
 
 # Moto/CyanogenDefy tiwlan
-# WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
-# WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
+WLAN_DRV_PATH := $(ROOTDIR)system/wlan/ti/wilink_6_1/platforms/os/linux
+WLAN_AP_DRV_PATH := $(ROOTDIR)system/wlan/ti/WiLink_AP/platforms/os/linux
 
 # CyanogenMod tiwlan (build fine but doesnt works well)
-WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
-WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
+# WLAN_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271/platforms/os/linux
+# WLAN_AP_DRV_PATH := $(ROOTDIR)hardware/ti/wlan/wl1271_softAP/platforms/os/linux
 
 ###############################################################################
 
