@@ -49,6 +49,8 @@
 #include "cifs_spnego.h"
 #define CIFS_MAGIC_NUMBER 0xFF534D42	/* the first four bytes of SMB PDUs */
 
+#include "slow-work.h"
+
 #ifdef CONFIG_CIFS_QUOTA
 static const struct quotactl_ops cifs_quotactl_ops;
 #endif /* QUOTA */
@@ -979,6 +981,7 @@ init_cifs(void)
 	INIT_LIST_HEAD(&GlobalDnotifyReqList);
 	INIT_LIST_HEAD(&GlobalDnotifyRsp_Q);
 #endif
+	cifs_init_slow_work();
 /*
  *  Initialize Global counters
  */
