@@ -123,6 +123,13 @@ struct _LinuxMemArea {
             struct page **pvPageList;
 	    IMG_HANDLE hBlockPageList;
         }sPageList;
+#ifdef CONFIG_ION_OMAP
+        struct _sIONTilerAlloc
+        {
+            IMG_CPU_PHYADDR *pCPUPhysAddrs;
+            struct ion_handle *psIONHandle;
+        }sIONTilerAlloc;
+#endif
         struct _sSubAlloc
         {
             
