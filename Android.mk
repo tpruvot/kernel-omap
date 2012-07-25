@@ -380,6 +380,7 @@ device_modules: $(CONFIG_OUT)
 	-find $(MOTO_MOD_INSTALL)/ -name "*.ko" | xargs rm -f
 	find $(TARGET_KERNEL_MODULES_EXT)/ -name "*.ko" -exec mv {} \
 		$(MOTO_MOD_INSTALL) \; || true
+	-$(MODULE_CROSS_COMPILE)strip --strip-debug $(MOTO_MOD_INSTALL)/*.ko
 
 device_modules_clean:
 	$(API_MAKE) -C $(TARGET_KERNEL_MODULES_EXT) clean
