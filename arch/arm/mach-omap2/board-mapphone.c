@@ -1296,7 +1296,7 @@ static struct i2c_board_info __initdata
 	},
 #endif
 
-#if CONFIG_KEYBOARD_ADP5588
+#ifdef CONFIG_KEYBOARD_ADP5588
 	{
 		I2C_BOARD_INFO(ADP5588_KEYPAD_NAME, ADP5588_I2C_ADDRESS),
 		.platform_data = &mapphone_adp5588_pdata,
@@ -1672,7 +1672,7 @@ static struct prm_setup_vc mapphone_prm_setup = {
 /* TODO : Implement CPCAP init */
 int __init omap_pmic_srinit(void)
 {
-	printk(KERN_INFO "\nMAPPHONE PMIC SR init...\n");
+	pr_notice("MAPPHONE PMIC SmartReflex init...\n");
 	return 0;
 }
 /**
@@ -2292,21 +2292,32 @@ static inline void mapphone_ramconsole_init(void) {}
 static inline void omap2_ramconsole_reserve_sdram(void) {}
 #endif
 
+#if defined(CONFIG_SGX)
+#define BUILD_WITH_SGX
+#endif
 
+#ifdef BUILD_WITH_SGX
 static struct platform_device mapphone_sgx_device = {
-       .name                   = "pvrsrvkm",
-       .id             = -1,
+	.name	= "pvrsrvkm",
+	.id	= -1,
 };
-static struct platform_device mapphone_omaplfb_device = {
-	.name			= "omaplfb",
-	.id			= -1,
-};
+#endif
 
+#ifdef CONFIG_PVR_OMAPLFB
+static struct platform_device mapphone_omaplfb_device = {
+	.name	= "omaplfb",
+	.id	= -1,
+};
+#endif
 
 static void __init mapphone_sgx_init(void)
 {
+#ifdef BUILD_WITH_SGX
 	platform_device_register(&mapphone_sgx_device);
+#endif
+#ifdef CONFIG_PVR_OMAPLFB
 	platform_device_register(&mapphone_omaplfb_device);
+#endif
 }
 
 static void __init mapphone_bp_model_init(void)
@@ -2442,7 +2453,7 @@ static void __init mapphone_init(void)
 	mapphone_gadget_init();
 	mapphone_sim_init();
 #ifdef CONFIG_MEM_DUMP
-    reset_proc_init();
+	reset_proc_init();
 #endif
 }
 

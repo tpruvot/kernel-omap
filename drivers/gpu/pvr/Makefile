@@ -1,5 +1,5 @@
 #
-ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr -Idrivers/gpu/pvr/omap3 \
+ccflags-y = -DLINUX -D__linux__ -Idrivers/gpu/pvr -Idrivers/gpu/pvr/omap3 -Idrivers/gpu/pvr/sgx \
 	-DANDROID \
 	-DPVR_BUILD_DIR="\"omap3430_android\"" \
 	-DSGX_DYNAMIC_TIMING_INFO \
@@ -49,6 +49,11 @@ ccflags-$(CONFIG_SGX_BUILD_DEBUG) += \
 	-DDLL_METRIC=1
 
 ccflags-$(CONFIG_SGX) += -Idrivers/gpu/pvr/sgx \
+	-DSGX_CORE_REV=$(CONFIG_SGX_CORE_REV) \
+	-DSUPPORT_SGX \
+	-DSGX530 -DSUPPORT_SGX530
+
+ccflags-y += -Idrivers/gpu/pvr/sgx \
 	-DSGX_CORE_REV=$(CONFIG_SGX_CORE_REV) \
 	-DSUPPORT_SGX \
 	-DSGX530 -DSUPPORT_SGX530

@@ -6,14 +6,13 @@ config SGX
 config SGX_CORE_REV
 	int "SGX Core Revision"
 	range 100 1999
-	default 121
+	default 125
 	depends on SGX
 	---help---
 	  Select SGX Core Revision number.
 	  Range 100 - 1999
 	  Examples:
-		121 => 121
-		1111 => 1111
+	    125 => 125
 
 choice
 	prompt "PowerVR build type"
@@ -21,26 +20,27 @@ choice
 	default SGX_BUILD_RELEASE
 
 config SGX_BUILD_RELEASE
-       bool "RELEASE"
+	bool "RELEASE"
 
 config SGX_BUILD_DEBUG
-       bool "DEBUG"
+	bool "DEBUG"
 
 endchoice
 
 config SGX_RELEASE_LOGGING
-       bool "Error logging in release build"
-       ---help---
-          Includes error logging in release build
+	bool "Error logging in release build"
+	---help---
+	  Includes error logging in release build
 
 config SGX_EDM_TRACING
-       bool "EDM Status Tracing"
-       ---help---
-         Enable EDM status trace dumping on HW Recovery
+	bool "EDM Status Tracing"
+	---help---
+	  Enable EDM status trace dumping on HW Recovery
+
 config SGX_MK_TRACE
-       bool "MK Trace"
-       ---help---
-         Enable suppport for dumping EDM status tracing from userspace
+	bool "MK Trace"
+	---help---
+	  Enable suppport for dumping EDM status tracing from userspace
 
 config PVR_OMAPLFB
 	tristate "PowerVR OMAP buffer class"
