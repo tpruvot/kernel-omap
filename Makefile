@@ -1036,7 +1036,7 @@ define filechk_utsrelease.h
 	fi;                                                               \
 	(echo \#define KERNEL_VER_NOSCM \"$(KERNEL_VER_NOSCM)\";          \
 	echo \#ifndef UTS_RELEASE;                                        \
-	echo \#define UTS_RELEASE \"$(KERNELRELEASE)\";                   \
+	echo \#define UTS_RELEASE \"$(KERNEL_VER_NOSCM)\";                \
 	echo \#endif;)
 endef
 
